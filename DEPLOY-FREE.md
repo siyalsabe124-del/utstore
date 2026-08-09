@@ -22,8 +22,8 @@
 Repo GitHub pe aa jane ke baad:
 1. Repo kholo → **Settings → Pages**
 2. **Source: Deploy from a branch** → Branch: `main` / folder: `/ (root)` → **Save**
-3. 2–5 minute mein site live: `https://USERNAME.github.io/REPO-NAME/`
-4. Admin panel: `https://USERNAME.github.io/REPO-NAME/admin.html`
+3. 2–5 minute mein site live: `https://siyalsabe124-del.github.io/utstore/`
+4. Admin panel: `https://siyalsabe124-del.github.io/utstore/admin.html`
 
 **Alternative (aur bhi asaan):** [app.netlify.com/drop](https://app.netlify.com/drop) — `utstore-website.zip` drag karo, free account banao, instant URL mil jayega.
 
@@ -40,7 +40,7 @@ Repo GitHub pe aa jane ke baad:
 4. **Environment Variables** (Environment tab mein):
    ```
    OWNER_WA      = 92XXXXXXXXXX        ← aapka WhatsApp number
-   SITE_URL      = https://USERNAME.github.io/REPO-NAME
+   SITE_URL      = https://siyalsabe124-del.github.io/utstore
    MONGO_URI     = (step 3 wala — optional lekin recommended)
    EMAIL_USER    = siyalsabe124@gmail.com
    EMAIL_PASS    = (Gmail App Password — orders ki PDF email ke liye)
