@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — UTStore</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230b5d43'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>U</text></svg>">
+<style>
+:root{
+  --green:#0b5d43; --green-d:#084433; --green-dd:#063325; --mint:#e7f4ee; --mint-2:#d2eadd;
+  --amber:#ffb800; --red:#e5484d; --blue:#2563eb; --ink:#17211c; --sub:#5b6b62; --line:#e4ece7;
+  --bg:#f4f7f5; --card:#ffffff; --shadow:0 6px 24px rgba(8,68,51,.08); --r:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100dvh}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:14px}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:9px;height:8px}
+::-webkit-scrollbar-thumb{background:#c4d6cc;border-radius:99px}
+
+/* ---------- login ---------- */
+.login-wrap{min-height:100dvh;display:grid;place-items:center;padding:20px;background:linear-gradient(140deg,var(--green-dd),var(--green) 70%,#12805d)}
+.login-card{background:#fff;border-radius:22px;padding:38px 34px;width:min(400px,100%);box-shadow:0 30px 80px rgba(0,0,0,.35);text-align:center}
+.login-card .mark{width:62px;height:62px;border-radius:17px;background:linear-gradient(135deg,var(--green),var(--green-dd));color:#fff;display:grid;place-items:center;font-size:31px;font-weight:800;margin:0 auto 16px}
+.login-card h1{font-size:22px;font-weight:800;letter-spacing:-.4px}
+.login-card p{font-size:13px;color:var(--sub);margin:7px 0 22px}
+.login-card input{width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid var(--line);margin-bottom:12px;outline:none;transition:.15s}
+.login-card input:focus{border-color:var(--green);box-shadow:0 0 0 4px rgba(11,93,67,.1)}
+.login-card button{width:100%;background:var(--green);color:#fff;padding:14px;border-radius:12px;font-weight:800;font-size:14.5px}
+.login-card button:hover{background:var(--green-d)}
+.login-hint{font-size:11.5px;color:#93a99d;margin-top:14px}
+.login-err{color:var(--red);font-size:13px;font-weight:600;margin-bottom:10px;display:none}
+
+/* ---------- layout ---------- */
+.app{display:none;min-height:100dvh}
+.app.on{display:grid;grid-template-columns:230px 1fr}
+.sidebar{background:var(--green-dd);color:#bcd9c9;display:flex;flex-direction:column;position:sticky;top:0;height:100dvh}
+.sb-brand{padding:22px 20px 18px;display:flex;align-items:center;gap:10px;color:#fff;font-size:19px;font-weight:800;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-brand .mark{width:33px;height:33px;border-radius:9px;background:#fff;color:var(--green-dd);display:grid;place-items:center;font-size:17px}
+.sb-nav{padding:14px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.sb-item{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:11px;font-size:14px;font-weight:600;color:#a9ccb9;transition:.15s;cursor:pointer}
+.sb-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.sb-item.on{background:rgba(255,255,255,.13);color:#fff}
+.sb-item .n{margin-left:auto;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;border-radius:99px;padding:2px 8px}
+.sb-foot{padding:14px 12px;border-top:1px solid rgba(255,255,255,.1)}
+.main{padding:26px 30px;min-width:0}
+.topbar{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-wrap:wrap}
+.topbar h1{font-size:23px;font-weight:800;letter-spacing:-.4px}
+.topbar .sp{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:11px;font-size:13.5px;font-weight:700;transition:.15s;border:1.5px solid var(--line);background:var(--card);color:var(--ink)}
+.btn:hover{border-color:var(--green);color:var(--green)}
+.btn.pri{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.pri:hover{background:var(--green-d)}
+.btn.dan{color:var(--red);border-color:#f3c8ca}
+.btn.dan:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.s{padding:7px 12px;font-size:12px;border-radius:9px}
+.btn.g{background:#25d366;color:#fff;border-color:#25d366}
+.btn.g:hover{background:#1fb457;color:#fff;border-color:#1fb457}
+
+.panel{display:none}
+.panel.on{display:block;animation:fin .2s ease}
+@keyframes fin{from{opacity:0;transform:translateY(6px)}}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:19px}
+.stat .si{width:42px;height:42px;border-radius:11px;background:var(--mint);display:grid;place-items:center;font-size:20px;margin-bottom:12px}
+.stat b{font-size:23px;letter-spacing:-.5px;display:block}
+.stat small{font-size:12.5px;color:var(--sub)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.card h3{font-size:15.5px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* table */
+.tools{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.tools input[type=search]{flex:1;min-width:200px;padding:11px 16px;border-radius:12px;border:1.5px solid var(--line);outline:none;background:#fff}
+.tools input:focus{border-color:var(--green)}
+.tools select{padding:11px 14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;outline:none;font-weight:600}
+.tbl-wrap{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--sub);padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdfc;white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid #eef3f0;font-size:13.5px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fbF9}
+.pcell{display:flex;align-items:center;gap:12px;min-width:240px;max-width:380px}
+.pcell img{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#eef4f0;flex-shrink:0;cursor:pointer}
+.pcell .pn{font-weight:650;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.chip.cat{background:var(--mint);color:var(--green-d)}
+.chip.mk{background:#fff3d6;color:#8a6100}
+.chip.neg{background:#fde3e4;color:#a11}
+.chip.st-new{background:#dbeafe;color:#1d4ed8}
+.chip.st-confirmed{background:#d1fae5;color:#065f46}
+.chip.st-delivered{background:#e5e7eb;color:#374151}
+.chip.st-cancelled{background:#fde3e4;color:#a11}
+.rowacts{display:flex;gap:6px}
+.iact{width:33px;height:33px;border-radius:9px;display:grid;place-items:center;font-size:14px;background:var(--mint);color:var(--green-d);transition:.13s}
+.iact:hover{background:var(--green);color:#fff}
+.iact.del{background:#fdecec;color:var(--red)}
+.iact.del:hover{background:var(--red);color:#fff}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:18px}
+.modal.on{display:grid}
+.modal .mbg{position:absolute;inset:0;background:rgba(10,25,19,.55);backdrop-filter:blur(3px)}
+.mbox{position:relative;background:#fff;border-radius:20px;width:min(720px,100%);max-height:92dvh;overflow-y:auto;padding:26px;box-shadow:0 30px 80px rgba(0,0,0,.3);animation:pop .22s ease}
+@keyframes pop{from{transform:scale(.95);opacity:0}}
+.mbox h2{font-size:19px;font-weight:800;margin-bottom:18px;display:flex;align-items:center;gap:9px}
+.mbox .x{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:10px;background:var(--mint);display:grid;place-items:center;color:var(--green-d);font-size:15px}
+.fgrid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.f-row{margin-bottom:13px}
+.f-row.full{grid-column:1/-1}
+.f-row label{font-size:12.5px;font-weight:700;display:block;margin-bottom:6px}
+.f-row label small{color:var(--sub);font-weight:500}
+.f-row input,.f-row select,.f-row textarea{width:100%;padding:11px 14px;border-radius:11px;border:1.5px solid var(--line);outline:none;background:#fbfdfc;transition:.13s}
+.f-row input:focus,.f-row select:focus,.f-row textarea:focus{border-color:var(--green);background:#fff;box-shadow:0 0 0 3px rgba(11,93,67,.09)}
+.markup-preview{background:var(--mint);border-radius:11px;padding:12px 15px;font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.markup-preview b{color:var(--green-d)}
+.badge-opts{display:flex;flex-wrap:wrap;gap:9px}
+.bopt{display:flex;align-items:center;gap:7px;background:#fbfdfc;border:1.5px solid var(--line);border-radius:10px;padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.13s}
+.bopt:has(input:checked){background:var(--mint);border-color:var(--green)}
+.bopt input{accent-color:var(--green)}
+.img-edit{display:flex;gap:16px;align-items:flex-start}
+.img-edit .prev{width:110px;height:110px;border-radius:14px;background:#eef4f0;border:1.5px dashed #c4d6cc;overflow:hidden;display:grid;place-items:center;font-size:30px;flex-shrink:0}
+.img-edit .prev img{width:100%;height:100%;object-fit:cover}
+.img-edit .ctl{flex:1}
+.macts{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+
+/* orders */
+.ocard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:13px}
+.ocard .ohead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.ocard .oid{font-weight:800;font-size:14.5px}
+.ocard .ot{font-size:12px;color:var(--sub)}
+.ocard .ototal{margin-left:auto;font-weight:800;color:var(--green-d);font-size:16px}
+.oitems{font-size:13px;color:var(--sub);line-height:1.8;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:9px 0;margin-bottom:10px}
+.ocust{font-size:13px;line-height:1.7;margin-bottom:12px}
+.ocust b{color:var(--ink)}
+.oacts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.oacts select{padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);font-weight:600;font-size:12.5px;outline:none}
+.empty{text-align:center;padding:56px 20px;color:var(--sub)}
+.empty div{font-size:44px;margin-bottom:12px}
+
+/* publish */
+.pub-steps{counter-reset:s;display:flex;flex-direction:column;gap:11px;margin:14px 0}
+.pub-steps li{list-style:none;display:flex;gap:13px;font-size:13.5px;line-height:1.6;color:var(--sub)}
+.pub-steps li::before{counter-increment:s;content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;font-size:12.5px;font-weight:800;display:grid;place-items:center;flex-shrink:0}
+.pub-steps b{color:var(--ink)}
+.warn{background:#fff8e6;border:1.5px solid #f0dfae;border-radius:12px;padding:14px 17px;font-size:13px;line-height:1.65;color:#6b5510;margin-bottom:14px}
+.ok{background:var(--mint);border:1.5px solid var(--mint-2);border-radius:12px;padding:14px 17px;font-size:13px;line-height:1.65;color:var(--green-d)}
+
+/* toast */
+.toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:9px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;padding:12px 22px;border-radius:99px;box-shadow:0 10px 30px rgba(0,0,0,.3);animation:tin .25s ease}
+@keyframes tin{from{transform:translateY(14px);opacity:0}}
+
+@media(max-width:900px){
+  .app.on{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto;flex-direction:row;align-items:center;overflow-x:auto}
+  .sb-nav{flex-direction:row;padding:8px}
+  .sb-foot{display:none}
+  .sb-brand{border:none;padding:14px}
+  .sb-item{white-space:nowrap}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .fgrid2{grid-template-columns:1fr}
+  .main{padding:18px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <div class="mark">M</div>
+    <h1>Admin Panel</h1>
+    <p>Apni store manage karein — products, prices, markup, orders</p>
+    <div class="login-err" id="loginErr">❌ Ghalat email ya password — dobara koshish karein</div>
+    <input type="email" id="emailInput" placeholder="Gmail address" autocomplete="username">
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Login →</button>
+    <div class="login-hint">🔒 Sirf owner ke liye — apna Gmail aur password se login karein<br>Password bhool gaye? <a style="cursor:pointer;color:var(--green);font-weight:700" onclick="resetLogin()">↩️ Login reset karein</a> (default par wapas)</div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sb-brand"><span class="mark">U</span>Admin</div>
+    <nav class="sb-nav">
+      <div class="sb-item on" data-p="dash" onclick="goPanel('dash')">📊 Dashboard</div>
+      <div class="sb-item" data-p="products" onclick="goPanel('products')">📦 Products</div>
+      <div class="sb-item" data-p="orders" onclick="goPanel('orders')">🧾 Orders <span class="n" id="navOcount" style="display:none"></span></div>
+      <div class="sb-item" data-p="settings" onclick="goPanel('settings')">⚙️ Settings</div>
+      <div class="sb-item" data-p="publish" onclick="goPanel('publish')">🚀 Publish</div>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-item" onclick="window.open('index.html','_blank')">🛍 View Store ↗</div>
+      <div class="sb-item" onclick="doLogout()">⏻ Logout</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="panel on" id="p-dash">
+      <div class="topbar"><h1>📊 Dashboard</h1>
+        <div class="sp"><a class="btn" href="index.html" target="_blank">🛍 View store ↗</a><button class="btn pri" onclick="openForm()">+ Add product</button></div>
+      </div>
+      <div class="stats" id="statCards"></div>
+      <div class="card">
+        <h3>🧾 Latest orders</h3>
+        <div id="dashOrders"></div>
+      </div>
+      <div class="card">
+        <h3>💡 Quick tips (Urdu)</h3>
+        <div style="font-size:13.5px;color:var(--sub);line-height:2">
+          • <b>Products</b> tab mein kisi bhi item ka <b>rate, cost aur markup</b> change karein — markup khud calculate ho jata hai<br>
+          • Picture badalnay ke liye product <b>Edit → Change image</b> (upload ya link)<br>
+          • Changes ke baad <b>🚀 Publish</b> tab se <b>data.js download</b> kar ke Hostinger pe upload karein — tabhi sab customers ko naye rates dikhenge<br>
+          • Apna WhatsApp number <b>⚙️ Settings</b> mein set karein taake orders aapko milen
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PRODUCTS ===== -->
+    <section class="panel" id="p-products">
+      <div class="topbar"><h1>📦 Products</h1>
+        <div class="sp"><button class="btn pri" onclick="openForm()">+ Add product</button></div>
+      </div>
+      <div class="tools">
+        <input type="search" id="pSearch" placeholder="🔍 Search products…" oninput="renderTable()">
+        <select id="pDeckFilter" onchange="renderTable()"><option value="">All decks</option></select>
+        <select id="pCatFilter" onchange="renderTable()"><option value="">All categories</option></select>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Category</th><th>Deck</th><th>Cost</th><th>Rate</th><th>Markup</th><th>Badges</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody id="pRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== ORDERS ===== -->
+    <section class="panel" id="p-orders">
+      <div class="topbar"><h1>🧾 Orders & Customers</h1>
+        <div class="sp"><button class="btn dan" onclick="clearOrders()">🗑 Clear all</button></div>
+      </div>
+      <div class="warn">💡 Ye orders list <b>is device/browser</b> pe place huye orders dikhati hai. Asal customers ke orders aapko <b>WhatsApp pe</b> milte hain (checkout automatic WhatsApp kholta hai). Live database wala system chahiye to backend lagana hoga — baad mein add kar saktay hain.</div>
+      <div id="ordersList"></div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section class="panel" id="p-settings">
+      <div class="topbar"><h1>⚙️ Settings</h1></div>
+      <div class="card">
+        <h3>📲 WhatsApp number (orders is par aayenge)</h3>
+        <div class="fgrid2">
+          <div class="f-row"><label>Owner WhatsApp <small>— country code ke saath, bina + (e.g. 923001234567)</small></label>
+            <input id="setWa" placeholder="923001234567" inputmode="numeric"></div>
+        </div>
+        <button class="btn pri" onclick="saveWa()">💾 Save number</button>
+      </div>
+      <div class="card">
+        <h3>🔑 Login change karein (email / password)</h3>
+        <div class="fgrid2">
+          <div class="f-row"><label>Current password</label><input type="password" id="curPw"></div>
+          <div class="f-row"><label>New email</label><input type="email" id="newEmail" placeholder="newemail@gmail.com"></div>
+          <div class="f-row"><label>New password <small>— kam az kam 6 characters</small></label><input type="password" id="newPw"></div>
+        </div>
+        <button class="btn pri" onclick="changeCreds()">🔑 Update login</button>
+      </div>
+      <div class="card">
+        <h3>🤖 WhatsApp Bot server (auto orders + auto rate reply)</h3>
+        <div class="ok" style="margin-bottom:14px">Bot server chal raha ho to uska URL yahan likhein — phir orders <b>khud-ba-khud</b> aapke WhatsApp pe aayenge (customer ko send dabana nahi parega) aur bot logon ke rate sawalon ka khud jawab dega.<br><small>Setup ke liye <b>whatsapp-bot</b> folder ka README dekhein — khali chhoodein to purana wa.me tareeqa chalta rahega.</small></div>
+        <div class="f-row"><label>Bot URL <small>— e.g. https://aapka-bot.onrender.com</small></label>
+          <input id="setBot" placeholder="https://…"></div>
+        <button class="btn pri" onclick="saveBot()">💾 Save bot URL</button>
+        <div style="font-size:12px;color:var(--sub);margin-top:9px">Status: <b id="botStatus">—</b></div>
+      </div>
+      <div class="card">
+        <h3>⚠️ Danger zone</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn dan" onclick="resetProducts()">↩️ Products ko original data pe reset karein</button>
+          <button class="btn dan" onclick="doLogout()">⏻ Logout</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PUBLISH ===== -->
+    <section class="panel" id="p-publish">
+      <div class="topbar"><h1>🚀 Publish (changes sab ko live karein)</h1></div>
+      <div class="warn">⚠️ Admin panel mein jo changes karte hain wo <b>sirf aapke browser</b> mein save hoti hain (preview). <b>Sab customers</b> ko dikhane ke liye neeche wala tareeqa follow karein — bilkul asaan hai:</div>
+      <div class="card">
+        <h3>📤 Step-by-step: changes live karna</h3>
+        <ol class="pub-steps">
+          <li><span><b>"Download data.js"</b> dabayein — file aapke phone/PC mein download ho jayegi</span></li>
+          <li><span><b>Hostinger hPanel</b> kholein → <b>Files → File Manager</b> → <b>public_html</b></span></li>
+          <li><span>Purani <b>data.js</b> ko replace karein — nayi file <b>upload</b> kar dein</span></li>
+          <li><span>Ho gaya! ✅ Ab naye products/rates <b>sab visitors</b> ko dikhenge</span></li>
+        </ol>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn pri" onclick="exportData()">⬇️ Download data.js</button>
+          <button class="btn" onclick="document.getElementById('impFile').click()">📥 Import data.js</button>
+          <input type="file" id="impFile" accept=".js,.json" style="display:none" onchange="importData(event)">
+        </div>
+      </div>
+      <div class="ok">🖼️ <b>Upload ki gayi images</b> file ke andar hi save ho jati hain (base64) — alag se upload karne ki zaroorat nahi. Bari images se file heavy ho sakti hai, is liye chhoti/compressed pics use karein.</div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ PRODUCT FORM MODAL ============ -->
+<div class="modal" id="formModal"><div class="mbg" onclick="closeForm()"></div>
+  <div class="mbox">
+    <button class="x" onclick="closeForm()">✕</button>
+    <h2 id="formTitle">✏️ Edit product</h2>
+    <input type="hidden" id="fId">
+    <div class="f-row full"><label>Product name</label><input id="fName" placeholder="e.g. 3 Pcs Women's Unstitched Suit"></div>
+
+    <div class="fgrid2">
+      <div class="f-row"><label>💰 Cost price <small>— aapko kitne ka para (PKR)</small></label>
+        <input id="fCost" type="number" min="0" placeholder="e.g. 1500" oninput="calcFrom('cost')"></div>
+      <div class="f-row"><label>📈 Markup % <small>— kitna profit rakhna hai</small></label>
+        <input id="fMarkup" type="number" step="0.1" placeholder="e.g. 25" oninput="calcFrom('markup')"></div>
+      <div class="f-row full"><label>🏷️ Sale rate (PKR) <small>— customer ko ye price dikhegi</small></label>
+        <input id="fPrice" type="number" min="0" placeholder="e.g. 1999" oninput="calcFrom('price')"></div>
+    </div>
+    <div class="markup-preview" id="mkPreview">Cost, markup ya rate likhein — baqi khud calculate ho jayega ✨</div>
+
+    <div class="fgrid2" style="margin-top:14px">
+      <div class="f-row"><label>Category</label><select id="fCat"></select></div>
+      <div class="f-row"><label>Deck (homepage section)</label><select id="fDeck"></select></div>
+    </div>
+
+    <div class="f-row full"><label>Badges</label>
+      <div class="badge-opts">
+        <label class="bopt"><input type="checkbox" id="bTop"> ⭐ Top pick</label>
+        <label class="bopt"><input type="checkbox" id="bFree"> 🚚 Free delivery</label>
+        <label class="bopt">−<input type="number" id="bDisc" min="0" max="90" style="width:56px;border:none;background:none;outline:none;font-weight:700" placeholder="0">% off</label>
+        <label class="bopt">Only <input type="number" id="bLeft" min="0" style="width:52px;border:none;background:none;outline:none;font-weight:700" placeholder="–"> left</label>
+        <label class="bopt">★ <select id="bRate" style="border:none;background:none;outline:none;font-weight:700"><option value="">no rating</option><option>5.0</option><option>4.8</option><option>4.5</option><option>4.2</option><option>4.0</option></select></label>
+      </div>
+    </div>
+
+    <div class="f-row full"><label>🖼️ Picture</label>
+      <div class="img-edit">
+        <div class="prev" id="fPrev">🖼️</div>
+        <div class="ctl">
+          <input id="fImg" placeholder="Image URL (https://…) ya neeche upload karein" oninput="prevImg()">
+          <div style="display:flex;gap:9px;margin-top:9px">
+            <button class="btn s" onclick="document.getElementById('fFile').click()">📤 Upload pic</button>
+            <input type="file" id="fFile" accept="image/*" style="display:none" onchange="uploadImg(event)">
+            <span style="font-size:11.5px;color:var(--sub);align-self:center">JPG/PNG — chhoti size behtar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="macts">
+      <button class="btn dan" id="fDelete" onclick="deleteFromForm()">🗑 Delete</button>
+      <button class="btn" onclick="closeForm()">Cancel</button>
+      <button class="btn pri" onclick="saveProduct()">💾 Save product</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="data.js"></script>
+<script>
+/* ================= CONSTS ================= */
+const DECKS = [
+ ["azadi","14th August Special 🇵🇰"],["free","Delivery Fee Se Azadi ⭐"],["azadi10","Azadi 10% Discount"],
+ ["bazar","🌙 Azadi Bazar"],["editor","Editor's Picks"],["fav","Your Favorite Products"],
+ ["recent","Recent Products"],["trending","Trending Products 🔥"],["branded","Branded Suits Collection"],
+ ["weekly","Weekly Winners"],["summer","Hot Summer Finds"],["unstitched","Trending Unstitched Suits"],
+ ["newdeals","New Deals For You"],["today","New Products Today 🎁"],["best","Best Deals For You"],
+ ["reco","Recommended For You"],["fast","Fast Movers For You"],["city","Popular In Your City"],
+ ["like","We Think You Might Like!"],
+];
+const CATNAMES = {women:"Women",men:"Men",kids:"Kids & Toys",beauty:"Beauty",home:"Home",electronics:"Electronics",books:"Books",shoes:"Shoes",bags:"Bags",acc:"Accessories"};
+
+/* ================= STATE ================= */
+let PRODUCTS = (typeof DEFAULT_PRODUCTS!=='undefined') ? JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)) : [];
+try{ const o=localStorage.getItem('mz_products_live'); if(o) PRODUCTS=JSON.parse(o); }catch(e){}
+let costs = {}; try{ costs = JSON.parse(localStorage.getItem('mz_costs')||'{}'); }catch(e){}
+const $ = s=>document.querySelector(s);
+const fmt = n=>"PKR "+Number(n||0).toLocaleString('en-PK');
+const PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e7f4ee"/><text x="100" y="118" font-size="60" text-anchor="middle">🛍</text></svg>');
+function imgFallback(el){ el.onerror=null; el.src=PLACEHOLDER; }
+function toast(m){ const t=document.createElement('div'); t.className='toast'; t.textContent=m; $('#toasts').appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transition='.3s';setTimeout(()=>t.remove(),300)},2400); }
+function getOrders(){ try{ return JSON.parse(localStorage.getItem('mz_orders')||'[]'); }catch(e){ return []; } }
+function saveAll(){ localStorage.setItem('mz_products_live', JSON.stringify(PRODUCTS)); localStorage.setItem('mz_costs', JSON.stringify(costs)); refreshCounts(); }
+function deckName(k){ const d=DECKS.find(x=>x[0]===k); return d?d[1]:k; }
+
+/* ================= AUTH (Gmail login — hashed via browser crypto) ================= */
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+const DEFAULT_EMAIL_H = "34ee85faee20ba0fa8d72709401f361c0d68f42ba932a996b8ca3146a4ac04ad";
+const DEFAULT_PW_H    = "3bb56c00f536aacef05792cb18282c0558bc070867dc2aa866ab287e07daf967";
+function getEmailH(){ return localStorage.getItem('mz_admin_email_h') || DEFAULT_EMAIL_H; }
+function getPwH(){ return localStorage.getItem('mz_admin_pw_h') || DEFAULT_PW_H; }
+async function doLogin(){
+  const err=$('#loginErr'); err.style.display='none';
+  let em, pw;
+  try{
+    em = await sha256Hex(($('#emailInput').value||'').trim().toLowerCase());
+    pw = await sha256Hex($('#pwInput').value||'');
+  }catch(e){
+    err.textContent='⚠️ Page ko https (ya localhost) se kholein — browser crypto support chahiye';
+    err.style.display='block'; return;
+  }
+  if(em===getEmailH() && pw===getPwH()){
+    sessionStorage.setItem('mz_admin','1');
+    $('#loginWrap').style.display='none'; $('#app').classList.add('on');
+    init();
+  } else {
+    err.textContent='❌ Ghalat email ya password — case-sensitive hai, dekh kar likhein';
+    err.style.display='block'; $('#pwInput').value=''; $('#pwInput').focus();
+  }
+}
+function resetLogin(){
+  ['mz_admin_email_h','mz_admin_pw_h','mz_admin_pw'].forEach(k=>localStorage.removeItem(k));
+  sessionStorage.removeItem('mz_admin');
+  $('#loginErr').style.display='none';
+  toast('↩️ Login default par reset ho gaya');
+}
+
+function doLogout(){ sessionStorage.removeItem('mz_admin'); location.reload(); }
+if(sessionStorage.getItem('mz_admin')==='1'){ $('#loginWrap').style.display='none'; $('#app').classList.add('on'); window.addEventListener('DOMContentLoaded',init); }
+
+/* ================= NAV ================= */
+function goPanel(p){
+  document.querySelectorAll('.sb-item[data-p]').forEach(i=>i.classList.toggle('on',i.dataset.p===p));
+  document.querySelectorAll('.panel').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
+  if(p==='products') renderTable();
+  if(p==='orders') renderOrders();
+  if(p==='dash') renderDash();
+  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url')||''; checkBot(); }
+}
+function refreshCounts(){
+  const os=getOrders().filter(o=>o.status==='new').length;
+  const n1=$('#navOcount'); if(n1){ n1.style.display=os?'inline-block':'none'; n1.textContent=os; }
+}
+function init(){ fillSelects(); renderDash(); renderTable(); refreshCounts(); $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); }
+document.addEventListener('DOMContentLoaded',()=>{ if(sessionStorage.getItem('mz_admin')==='1') init(); });
+
+/* ================= DASHBOARD ================= */
+function renderDash(){
+  const os=getOrders();
+  const revenue=os.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+o.total,0);
+  const invVal=PRODUCTS.reduce((s,p)=>s+p.price,0);
+  const cats=new Set(PRODUCTS.map(p=>p.cat)).size;
+  $('#statCards').innerHTML=`
+    <div class="stat"><div class="si">📦</div><b>${PRODUCTS.length}</b><small>Total products</small></div>
+    <div class="stat"><div class="si">🧾</div><b>${os.length}</b><small>Orders (is device)</small></div>
+    <div class="stat"><div class="si">💰</div><b>${fmt(revenue)}</b><small>Orders value</small></div>
+    <div class="stat"><div class="si">🗂️</div><b>${cats}</b><small>Categories active</small></div>`;
+  $('#dashOrders').innerHTML = os.length
+    ? os.slice(0,5).map(o=>`<div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #eef3f0;font-size:13.5px">
+        <b>${o.oid}</b><span style="color:var(--sub)">${o.name} · ${o.phone}</span>
+        <span class="chip st-${o.status}">${o.status}</span>
+        <b style="margin-left:auto;color:var(--green-d)">${fmt(o.total)}</b></div>`).join('') +
+      `<div style="margin-top:12px"><button class="btn s" onclick="goPanel('orders')">View all orders →</button></div>`
+    : `<div class="empty" style="padding:30px"><div>🧾</div>Abhi koi order nahi — test order place kar ke dekhein</div>`;
+}
+
+/* ================= PRODUCTS TABLE ================= */
+function fillSelects(){
+  $('#pDeckFilter').innerHTML = '<option value="">All decks</option>'+DECKS.map(d=>`<option value="${d[0]}">${d[1]}</option>`).join('');
+  $('#pCatFilter').innerHTML = '<option value="">All categories</option>'+Object.entries(CATNAMES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  $('#fCat').innerHTML = Object.entries(CATNAMES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  $('#fDeck').innerHTML = DECKS.map(d=>`<option value="${d[0]}">${d[1]}</option>`).join('');
+}
+function markupOf(p){ const c=costs[p.id]; return (c&&c>0)? ((p.price-c)/c*100) : null; }
+function renderTable(){
+  const q=($('#pSearch').value||'').toLowerCase(), dk=$('#pDeckFilter').value, ct=$('#pCatFilter').value;
+  const list=PRODUCTS.filter(p=>(!dk||p.deck===dk)&&(!ct||p.cat===ct)&&(!q||p.name.toLowerCase().includes(q)));
+  $('#pRows').innerHTML = list.map(p=>{
+    const mk=markupOf(p);
+    return `<tr>
+      <td><div class="pcell"><img src="${p.img}" onerror="imgFallback(this)" onclick="openForm(${p.id})" title="Click to edit"><span class="pn">${p.name}</span></div></td>
+      <td><span class="chip cat">${CATNAMES[p.cat]||p.cat}</span></td>
+      <td style="font-size:12px;color:var(--sub);white-space:nowrap">${deckName(p.deck)}</td>
+      <td style="white-space:nowrap">${costs[p.id]?fmt(costs[p.id]):'<span style="color:#b7c6bd">—</span>'}</td>
+      <td style="white-space:nowrap"><b>${fmt(p.price)}</b></td>
+      <td>${mk===null?'<span style="color:#b7c6bd">—</span>':`<span class="chip ${mk<0?'neg':'mk'}">${mk<0?'▼':'▲'} ${mk.toFixed(1)}%</span>`}</td>
+      <td style="font-size:11px;color:var(--sub)">${p.badges.map(b=>b==='Top pick'?'⭐':b==='Free delivery'?'🚚':b).join(' ')||'—'}</td>
+      <td><div class="rowacts" style="justify-content:flex-end">
+        <button class="iact" title="Edit" onclick="openForm(${p.id})">✏️</button>
+        <button class="iact" title="Duplicate" onclick="dupProduct(${p.id})">⧉</button>
+        <button class="iact del" title="Delete" onclick="delProduct(${p.id})">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8"><div class="empty"><div>🔍</div>Kuch nahi mila</div></td></tr>`;
+}
+
+/* ================= PRODUCT FORM ================= */
+function openForm(id){
+  const p = id!==undefined ? PRODUCTS.find(x=>x.id===id) : null;
+  $('#formTitle').textContent = p ? '✏️ Edit product #'+p.id : '➕ Add new product';
+  $('#fId').value = p?p.id:'';
+  $('#fName').value = p?p.name:'';
+  $('#fPrice').value = p?p.price:'';
+  $('#fCost').value = (p&&costs[p.id])?costs[p.id]:'';
+  $('#fCat').value = p?p.cat:'women';
+  $('#fDeck').value = p?p.deck:'today';
+  $('#bTop').checked = p?p.badges.includes('Top pick'):false;
+  $('#bFree').checked = p?p.badges.includes('Free delivery'):false;
+  const dm = p?p.badges.find(b=>/^-\d+%$/.test(b)):null;
+  $('#bDisc').value = dm?parseInt(dm.slice(1)):'';
+  const lm = p?p.badges.find(b=>/^Only \d+ left$/.test(b)):null;
+  $('#bLeft').value = lm?lm.match(/\d+/)[0]:'';
+  const rm = p?p.badges.find(b=>/^[3-5]\.\d$/.test(b)):null;
+  $('#bRate').value = rm||'';
+  $('#fImg').value = p?p.img:'';
+  $('#fDelete').style.display = p?'inline-flex':'none';
+  prevImg(); calcFrom('cost');
+  $('#formModal').classList.add('on');
+}
+function closeForm(){ $('#formModal').classList.remove('on'); }
+function prevImg(){
+  const v=$('#fImg').value.trim();
+  $('#fPrev').innerHTML = v?`<img src="${v}" onerror="imgFallback(this)">`:'🖼️';
+}
+function calcFrom(src){
+  const cost=parseFloat($('#fCost').value), mk=parseFloat($('#fMarkup').value), price=parseFloat($('#fPrice').value);
+  if(src==='cost'||src==='markup'){
+    if(!isNaN(cost)&&!isNaN(mk)) $('#fPrice').value=Math.round(cost*(1+mk/100));
+  } else if(src==='price'){
+    if(!isNaN(cost)&&cost>0&&!isNaN(price)) $('#fMarkup').value=(((price-cost)/cost)*100).toFixed(1);
+  }
+  const c=parseFloat($('#fCost').value), r=parseFloat($('#fPrice').value);
+  if(!isNaN(c)&&!isNaN(r)&&c>0){
+    const m=((r-c)/c)*100, profit=r-c;
+    $('#mkPreview').innerHTML=`📊 Markup: <b>${m.toFixed(1)}%</b> &nbsp;·&nbsp; 💵 Profit per sale: <b class="${profit<0?'':''}" style="color:${profit<0?'var(--red)':'var(--green-d)'}">${fmt(profit)}</b> &nbsp;·&nbsp; 🏷️ Customer rate: <b>${fmt(r)}</b>`;
+  } else if(!isNaN(r)){
+    $('#mkPreview').innerHTML=`🏷️ Customer rate: <b>${fmt(r)}</b> — cost likhein to markup calculate ho jayega`;
+  } else {
+    $('#mkPreview').textContent='Cost, markup ya rate likhein — baqi khud calculate ho jayega ✨';
+  }
+}
+function uploadImg(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  if(f.size>1500000 && !confirm('Ye image kafi bari hai ('+(f.size/1000000).toFixed(1)+'MB) — file heavy ho jayegi. Phir bhi use karein?')) { ev.target.value=''; return; }
+  const rd=new FileReader();
+  rd.onload=e=>{ $('#fImg').value=e.target.result; prevImg(); toast('🖼️ Pic load ho gayi — Save dabayein'); };
+  rd.readAsDataURL(f);
+}
+function saveProduct(){
+  const name=$('#fName').value.trim(), price=parseInt($('#fPrice').value);
+  if(!name){ toast('⚠️ Product name likhein'); return; }
+  if(isNaN(price)||price<=0){ toast('⚠️ Sale rate (price) durust likhein'); return; }
+  const badges=[];
+  const d=parseInt($('#bDisc').value); if(d>0) badges.push('-'+d+'%');
+  if($('#bTop').checked) badges.push('Top pick');
+  const l=parseInt($('#bLeft').value); if(l>0) badges.push('Only '+l+' left');
+  if($('#bRate').value) badges.push($('#bRate').value);
+  if($('#bFree').checked) badges.push('Free delivery');
+  const img=$('#fImg').value.trim()||PLACEHOLDER;
+  const cost=parseFloat($('#fCost').value);
+  const idV=$('#fId').value;
+  if(idV){
+    const p=PRODUCTS.find(x=>x.id==idV);
+    Object.assign(p,{name,price,img,badges,cat:$('#fCat').value,deck:$('#fDeck').value});
+    if(!isNaN(cost)&&cost>0) costs[p.id]=cost; else delete costs[p.id];
+    toast('✅ Product update ho gaya');
+  } else {
+    const nid=Math.max(0,...PRODUCTS.map(p=>p.id))+1;
+    PRODUCTS.unshift({id:nid,deck:$('#fDeck').value,name,price,img,badges,cat:$('#fCat').value});
+    if(!isNaN(cost)&&cost>0) costs[nid]=cost;
+    toast('✅ Naya product add ho gaya');
+  }
+  saveAll(); closeForm(); renderTable(); renderDash();
+}
+function delProduct(id){
+  const p=PRODUCTS.find(x=>x.id===id);
+  if(!confirm('Delete karein?\n\n'+p.name)) return;
+  PRODUCTS=PRODUCTS.filter(x=>x.id!==id); delete costs[id];
+  saveAll(); renderTable(); renderDash(); toast('🗑 Product delete ho gaya');
+}
+function dupProduct(id){
+  const p=PRODUCTS.find(x=>x.id===id);
+  const nid=Math.max(0,...PRODUCTS.map(x=>x.id))+1;
+  PRODUCTS.unshift({...JSON.parse(JSON.stringify(p)),id:nid,name:p.name+' (Copy)'});
+  if(costs[id]) costs[nid]=costs[id];
+  saveAll(); renderTable(); toast('⧉ Duplicate ban gaya');
+}
+function deleteFromForm(){ const id=$('#fId').value; if(!id) return; closeForm(); delProduct(+id); }
+
+/* ================= ORDERS ================= */
+function renderOrders(){
+  const os=getOrders();
+  $('#ordersList').innerHTML = os.length ? os.map((o,i)=>`
+    <div class="ocard">
+      <div class="ohead">
+        <span class="oid">🧾 ${o.oid}</span>
+        <span class="ot">${new Date(o.ts).toLocaleString('en-PK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+        <span class="chip st-${o.status}">${o.status}</span>
+        <span class="ototal">${fmt(o.total)}</span>
+      </div>
+      <div class="oitems">${o.items.map(it=>`▪️ ${it.name} <b>× ${it.qty}</b> — ${fmt(it.price*it.qty)}`).join('<br>')}</div>
+      <div class="ocust">👤 <b>${o.name}</b> &nbsp;·&nbsp; 📱 <b>${o.phone}</b> &nbsp;·&nbsp; 📍 ${o.addr}<br>💵 COD &nbsp;·&nbsp; 🚚 Delivery: ${o.fee?fmt(o.fee):'FREE'}</div>
+      <div class="oacts">
+        <select onchange="setStatus(${i},this.value)">
+          ${['new','confirmed','delivered','cancelled'].map(s=>`<option ${o.status===s?'selected':''} value="${s}">${s}</option>`).join('')}
+        </select>
+        <a class="btn s g" target="_blank" href="https://wa.me/${o.phone.replace(/^0/,'92').replace(/\D/g,'')}?text=${encodeURIComponent('Assalam o Alaikum '+o.name+'! Aapka order '+o.oid+' ('+fmt(o.total)+') confirm ho gaya hai. Shukriya! 🛍')}">💬 Customer ko WhatsApp</a>
+        <a class="btn s" target="_blank" href="https://wa.me/${(localStorage.getItem('mz_owner_wa')||DEFAULT_OWNER_WA)}?text=${encodeURIComponent('🛍 ORDER '+o.oid+' — '+fmt(o.total)+'\n'+o.items.map(it=>'▪️ '+it.name+' x'+it.qty).join('\n')+'\n👤 '+o.name+'\n📱 '+o.phone+'\n📍 '+o.addr)}">📲 Mujhe (owner) bhejein</a>
+        <button class="btn s dan" onclick="delOrder(${i})">🗑</button>
+      </div>
+    </div>`).join('')
+  : `<div class="card"><div class="empty"><div>🧾</div><b>Koi order nahi mila abhi tak</b><br><small>Store pe ja kar test order place karein — wo yahan nazar aayega</small></div></div>`;
+}
+function setStatus(i,s){ const os=getOrders(); os[i].status=s; localStorage.setItem('mz_orders',JSON.stringify(os)); renderOrders(); renderDash(); refreshCounts(); toast('Status: '+s); }
+function delOrder(i){ if(!confirm('Ye order delete karein?')) return; const os=getOrders(); os.splice(i,1); localStorage.setItem('mz_orders',JSON.stringify(os)); renderOrders(); renderDash(); refreshCounts(); }
+function clearOrders(){ if(!confirm('Saare orders delete ho jayenge. Pakka?')) return; localStorage.removeItem('mz_orders'); renderOrders(); renderDash(); refreshCounts(); }
+
+/* ================= SETTINGS ================= */
+function saveWa(){
+  const v=$('#setWa').value.replace(/\D/g,'');
+  if(!/^92\d{10}$/.test(v)){ toast('⚠️ Format: 92 + 10 digits (e.g. 923001234567)'); return; }
+  localStorage.setItem('mz_owner_wa', v); toast('✅ WhatsApp number save ho gaya');
+}
+async function changeCreds(){
+  if(await sha256Hex($('#curPw').value||'')!==getPwH()){ toast('⚠️ Current password ghalat hai'); return; }
+  const ne=($('#newEmail').value||'').trim().toLowerCase(), np=$('#newPw').value||'';
+  if(ne && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ne)){ toast('⚠️ Email durust nahi'); return; }
+  if(!np || np.length<6){ toast('⚠️ New password kam az kam 6 characters'); return; }
+  if(ne) localStorage.setItem('mz_admin_email_h', await sha256Hex(ne));
+  localStorage.setItem('mz_admin_pw_h', await sha256Hex(np));
+  $('#curPw').value=''; $('#newEmail').value=''; $('#newPw').value='';
+  toast('🔑 Login update ho gaya — next time naye email/password se aayein');
+}
+function saveBot(){
+  const v=$('#setBot').value.trim();
+  if(v && !/^https?:\/\//.test(v)){ toast('⚠️ URL http/https se shuru ho'); return; }
+  if(v) localStorage.setItem('mz_bot_url', v.replace(/\/+$/,'')); else localStorage.removeItem('mz_bot_url');
+  toast('✅ Bot URL save ho gaya'); checkBot();
+}
+async function checkBot(){
+  const v=localStorage.getItem('mz_bot_url'), el=$('#botStatus');
+  if(!el) return;
+  if(!v){ el.textContent='Bot set nahi — wa.me tareeqa use ho raha hai'; el.style.color='var(--sub)'; return; }
+  el.textContent='Checking…';
+  try{
+    const r=await fetch(v+'/health',{signal:AbortSignal.timeout(6000)});
+    const j=await r.json();
+    el.textContent = j.connected ? '🟢 Connected — WhatsApp login live hai' : '🟡 Bot chal raha hai — QR scan karein ('+v+'/qr)';
+    el.style.color = j.connected ? 'var(--green)' : '#8a6100';
+  }catch(e){ el.textContent='🔴 Bot se rabta nahi ho paya — URL check karein ya bot start karein'; el.style.color='var(--red)'; }
+}
+function resetProducts(){
+  if(!confirm('Saare product changes khatam ho kar original 147 products wapas aa jayenge. Pakka?')) return;
+  localStorage.removeItem('mz_products_live'); localStorage.removeItem('mz_costs');
+  PRODUCTS=JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)); costs={};
+  renderTable(); renderDash(); toast('↩️ Original data restore ho gaya');
+}
+
+/* ================= PUBLISH ================= */
+function exportData(){
+  const wa = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:'923001234567');
+  const content = '/* UTStore — store data (Admin Panel se export hua) */\n'
+    + 'const DEFAULT_OWNER_WA = "'+wa+'";\n'
+    + 'const DEFAULT_COSTS = '+JSON.stringify(costs)+';\n'
+    + 'const DEFAULT_PRODUCTS = '+JSON.stringify(PRODUCTS)+';\n';
+  const blob=new Blob([content],{type:'text/javascript'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='data.js'; a.click();
+  toast('⬇️ data.js download ho rahi hai — ab Hostinger pe upload karein');
+}
+function importData(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const txt=e.target.result;
+      const pm=txt.match(/DEFAULT_PRODUCTS\s*=\s*(\[[\s\S]*\])\s*;/);
+      const wm=txt.match(/DEFAULT_OWNER_WA\s*=\s*"(\d+)"/);
+      const cm=txt.match(/DEFAULT_COSTS\s*=\s*(\{[\s\S]*?\})\s*;/);
+      if(!pm) throw 0;
+      PRODUCTS=JSON.parse(pm[1]);
+      if(cm) costs=JSON.parse(cm[1]);
+      if(wm) localStorage.setItem('mz_owner_wa', wm[1]);
+      saveAll(); renderTable(); renderDash();
+      toast('✅ Import kamyab — '+PRODUCTS.length+' products load');
+    }catch(err){ toast('⚠️ File theek nahi — export ki hui data.js use karein'); }
+    ev.target.value='';
+  };
+  rd.readAsText(f);
+}
+
+/* refresh counts badge fix */
+function refreshCountsInit(){ refreshCounts(); }
+refreshCountsInit();
+</script>
+</body>
+</html>

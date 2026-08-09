@@ -1,0 +1,6 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+*.zip
+scrape_download.py
+__pycache__/
