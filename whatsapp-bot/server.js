@@ -18,7 +18,7 @@ const path = require('path');
 
 /* ================= SETTINGS (env vars ya defaults) ================= */
 const PORT      = process.env.PORT || 3000;
-const OWNER     = (process.env.OWNER_WA || '923001234567').replace(/\D/g, '');
+const OWNER     = (process.env.OWNER_WA || '923245443606').replace(/\D/g, '');
 const STORE     = process.env.STORE_NAME || 'UTStore Store';
 const SITE_URL  = process.env.SITE_URL || '';
 const MONGO_URI = process.env.MONGO_URI || '';   // MongoDB Atlas ka free connection string
@@ -140,7 +140,7 @@ async function emailPDF(o, pdfBuf) {
     from: `"${STORE}" <${EMAIL_USER}>`,
     to: EMAIL_TO,
     subject: `🛍 New Order ${o.oid} — ${fmt(o.total)} (COD)`,
-    text: `New order received!\n\nOrder: ${o.oid}\nName: ${o.name}\nPhone: ${o.phone}\nAddress: ${o.addr}\n\n${items}\n\nSubtotal: ${fmt(o.sub)}\nDelivery: ${o.fee ? fmt(o.fee) : 'FREE'}\nTOTAL (COD): ${fmt(o.total)}\n\nPDF receipt attached.`,
+    text: `New order received!\n\nOrder: ${o.oid}\nName: ${o.name}\nPhone: ${o.phone}${o.email ? '\nEmail: ' + o.email : ''}\nAddress: ${o.addr}\n\n${items}\n\nSubtotal: ${fmt(o.sub)}\nDelivery: ${o.fee ? fmt(o.fee) : 'FREE'}\nTOTAL (COD): ${fmt(o.total)}\n\nPDF receipt attached.`,
     attachments: [{ filename: `Order-${o.oid}.pdf`, content: pdfBuf, contentType: 'application/pdf' }]
   });
   console.log('📧 PDF email bhej di:', EMAIL_TO);
@@ -164,7 +164,7 @@ async function makeAuth() {
   await mongoose.connect(MONGO_URI);
   console.log('🍃 MongoDB connected — session + orders SAVE honge');
   OrderModel = mongoose.model('Order', new mongoose.Schema({
-    oid: String, name: String, phone: String, addr: String,
+    oid: String, name: String, phone: String, email: String, addr: String,
     items: Array, sub: Number, fee: Number, total: Number,
     status: { type: String, default: 'new' }, ts: { type: Date, default: Date.now }
   }));
@@ -265,7 +265,52 @@ function page(icon, color, title, sub, refresh) {
   <body><div><span>${icon}</span><h1>${title}</h1><p>${sub}</p></div></body></html>`;
 }
 
-app.get('/health', (req, res) => res.json({ ok: true, connected, mongo: !!OrderModel, odoo: !!(ODOO && ODOO.configured()), owner: OWNER, products: PRODUCTS.length }));
+app.get('/health', (req, res) => res.json({ ok: true, connected, mongo: !!OrderModel, odoo: !!(ODOO && ODOO.configured()), email: !!EMAIL_PASS, owner: OWNER, products: PRODUCTS.length }));
+
+/* ================= EMAIL OTP SIGNUP/LOGIN (customer apni Gmail se PIN le kar login) ================= */
+const crypto = require('crypto');
+const pins = new Map();           // email -> {pin, exp, count}
+const sessionTokens = new Map();  // token -> {email, ts}
+
+app.post('/auth/start', async (req, res) => {
+  try {
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Email durust nahi' });
+    if (!EMAIL_PASS) return res.status(503).json({ ok: false, error: 'Email service set nahi — bot mein EMAIL_PASS lagayein' });
+    const cur = pins.get(email);
+    if (cur && cur.count >= 3 && Date.now() < cur.exp) return res.status(429).json({ ok: false, error: 'Bohat si koshishen — 10 minute baad try karein' });
+    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    pins.set(email, { pin, exp: Date.now() + 10 * 60 * 1000, count: (cur ? cur.count : 0) + 1 });
+    const nodemailer = require('nodemailer');
+    const mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: EMAIL_USER, pass: EMAIL_PASS.replace(/\s/g, '') } });
+    await mailer.sendMail({
+      from: `"${STORE}" <${EMAIL_USER}>`, to: email,
+      subject: `${pin} — aapka ${STORE} login PIN`,
+      text: `Assalam o Alaikum!\n\nAapka ${STORE} login PIN hai:\n\n   ${pin}\n\nYe PIN 10 minute tak valid hai.\nAgar aap ne nahi manga to is email ko ignore karein.\n\n— ${STORE}`
+    });
+    console.log('🔐 PIN bheja:', email);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/auth/verify', (req, res) => {
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  const pin = String((req.body || {}).pin || '').trim();
+  const rec = pins.get(email);
+  if (!rec || Date.now() > rec.exp) return res.status(400).json({ ok: false, error: 'PIN expire ho gaya — dobara mangwayein' });
+  if (rec.pin !== pin) return res.status(400).json({ ok: false, error: 'Ghalat PIN — dobara dekh kar likhein' });
+  pins.delete(email);
+  const token = crypto.randomBytes(24).toString('hex');
+  sessionTokens.set(token, { email, ts: Date.now() });
+  console.log('✅ Login hua:', email);
+  res.json({ ok: true, token, email });
+});
+
+app.post('/auth/check', (req, res) => {
+  const t = sessionTokens.get(String((req.body || {}).token || ''));
+  if (!t) return res.status(401).json({ ok: false });
+  res.json({ ok: true, email: t.email });
+});
 
 /* Order aaya → PDF banao → WhatsApp (text + PDF) + Gmail (PDF) + DATABASE save */
 app.post('/order', async (req, res) => {
@@ -296,7 +341,7 @@ app.post('/order', async (req, res) => {
       let text = `🛍 *NEW ORDER — ${o.oid}*\n━━━━━━━━━━━━━━━\n\n`;
       (o.items || []).forEach(it => { text += `▪️ ${it.name}\n    Qty: ${it.qty} × ${fmt(it.price)} = ${fmt(it.price * it.qty)}\n`; });
       text += `\nSubtotal: ${fmt(o.sub)}\nDelivery: ${o.fee ? fmt(o.fee) : 'FREE'}\n*TOTAL (COD): ${fmt(o.total)}*\n\n`;
-      text += `👤 Name: ${o.name}\n📱 Phone: ${o.phone}\n📍 Address: ${o.addr}\n\n💵 Payment: Cash on Delivery`;
+      text += `👤 Name: ${o.name}\n📱 Phone: ${o.phone}${o.email ? '\n📧 Email: ' + o.email : ''}\n📍 Address: ${o.addr}\n\n💵 Payment: Cash on Delivery`;
       if (odooSO) text += `\n🗂 Odoo: ${odooSO.name} (${odooSO.state}) ban gaya ✓`;
       await client.sendMessage(OWNER + '@c.us', text);
       console.log('📨 Order sent to owner:', o.oid, fmt(o.total));

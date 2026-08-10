@@ -315,6 +315,7 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
       <button class="sbtn" onclick="applySearch()">Search</button>
     </div>
     <div class="hacts">
+      <button class="iconbtn" id="authBtn" title="Login / Signup" onclick="openAuth()">👤</button>
       <button class="iconbtn" title="Wishlist" onclick="scrollToId('shop')">♡<span class="badgecount" id="wishCount" style="display:none">0</span></button>
       <button class="iconbtn" title="Cart" onclick="openCart()">🛒<span class="badgecount" id="cartCount" style="display:none">0</span></button>
     </div>
@@ -463,7 +464,7 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
     </div>
     <div class="fbot">
       <span>© 2026 UTStore — demo project for learning. Not affiliated with utstore.app.</span>
-      <span>Made with ❤️ in Pakistan 🇵🇰</span>
+      <span>Made with ❤️ by <b style="color:#fff">Umair</b> 🇵🇰</span>
     </div>
   </div>
 </footer>
@@ -483,6 +484,14 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
 <!-- QUICK VIEW -->
 <div class="modal" id="qvModal"><div class="mbg" onclick="closeAll()"></div>
   <div class="mbox"><button class="mclose" onclick="closeAll()">✕</button><div id="qvBody"></div></div>
+</div>
+
+<!-- LOGIN / SIGNUP (Gmail PIN) -->
+<div class="modal" id="authModal"><div class="mbg" onclick="closeAll()"></div>
+  <div class="mbox co-box">
+    <button class="mclose" onclick="closeAll()">✕</button>
+    <div id="authBody"></div>
+  </div>
 </div>
 
 <!-- CHECKOUT -->
@@ -817,6 +826,7 @@ function openCheckout(){
     <div class="f-row"><label>Full name</label><input id="coName" placeholder="e.g. Ahmed Raza"></div>
     <div class="f-row"><label>Mobile number</label><input id="coPhone" placeholder="03XX-XXXXXXX" inputmode="tel"></div>
     <div class="f-row"><label>Complete address</label><textarea id="coAddr" rows="2" placeholder="House, street, area, city (e.g. Narowal, Punjab)"></textarea></div>
+    ${MZ_USER?`<div class="pay-opt" style="border-color:var(--mint-2)"><span class="pi">📧</span><div><b>${MZ_USER.email}</b><span style="color:var(--sub);font-size:12px">Logged in — order receipt aapki email pe bhi jayegi</span></div><span style="margin-left:auto;color:var(--green);font-weight:800">✓</span></div>`:''}
     <div class="pay-opt"><span class="pi">💵</span><div><b>Cash on Delivery</b><span style="color:var(--sub);font-size:12px">Pay in cash when your parcel arrives — no advance payment</span></div><span style="margin-left:auto;color:var(--green);font-weight:800">✓</span></div>
     <button class="checkout-btn" onclick="placeOrder()">Confirm Order — ${fmt(sub+fee)}</button>`;
   $('#coModal').classList.add('on');
@@ -853,7 +863,7 @@ async function placeOrder(){
   const waURL='https://wa.me/'+OWNER_WHATSAPP+'?text='+encodeURIComponent(lines.join('\n'));
 
   /* ---- TRY BOT first: auto-send order to owner's WhatsApp (no send button needed) ---- */
-  const orderData={oid,name,phone,addr,items:Object.keys(cart).map(id=>{const p=PRODUCTS.find(x=>x.id==id);return p?{id:p.id,name:p.name,qty:cart[id],price:p.price}:null}).filter(Boolean),sub:lastTotals.sub,fee:lastTotals.fee,total:lastTotals.sub+lastTotals.fee};
+  const orderData={oid,name,phone,addr,email:MZ_USER?MZ_USER.email:'',items:Object.keys(cart).map(id=>{const p=PRODUCTS.find(x=>x.id==id);return p?{id:p.id,name:p.name,qty:cart[id],price:p.price}:null}).filter(Boolean),sub:lastTotals.sub,fee:lastTotals.fee,total:lastTotals.sub+lastTotals.fee};
   const botURL=localStorage.getItem('mz_bot_url')||'';
   let botSent=false;
   if(botURL){
@@ -876,6 +886,71 @@ async function placeOrder(){
          <a href="${waURL}" target="_blank" class="checkout-btn" style="max-width:320px;margin:0 auto 10px;background:#25d366">📲 Send order on WhatsApp</a><br>`}
     <button class="checkout-btn" style="max-width:280px;margin:6px auto 0;background:var(--green)" onclick="closeAll()">Continue shopping →</button>
   </div>`;
+}
+
+/* ================= AUTH (Gmail PIN login) ================= */
+let MZ_USER = null;
+try{ MZ_USER = JSON.parse(localStorage.getItem('mz_user')||'null'); }catch(e){}
+function botBase(){ return (localStorage.getItem('mz_bot_url')||'').replace(/\/+$/,''); }
+function updateAuthBtn(){
+  const b=$('#authBtn'); if(!b) return;
+  if(MZ_USER){ b.innerHTML='✅'; b.title='Logged in: '+MZ_USER.email; }
+  else{ b.innerHTML='👤'; b.title='Login / Signup'; }
+}
+function openAuth(){
+  const body=$('#authBody');
+  if(MZ_USER){
+    body.innerHTML=`<h2>👋 Salam!</h2>
+      <div class="sub2">Aap login hain:<br>📧 <b>${MZ_USER.email}</b></div>
+      <div class="ok" style="font-size:13px;line-height:1.7">✅ Aapke orders pe aapki email pe bhi receipt aayegi, aur checkout pe aapka email khud jud jata hai.</div>
+      <button class="checkout-btn" style="margin-top:16px" onclick="closeAll()">Continue shopping →</button>
+      <button class="checkout-btn" style="margin-top:9px;background:#fff;color:var(--red);border:1.5px solid #f3c8ca" onclick="logout()">Logout</button>`;
+  } else {
+    body.innerHTML=`<h2>🔐 Login / Signup</h2>
+      <div class="sub2">Apni <b>Gmail</b> likhein — us par 6-digit <b>PIN</b> aayega. PIN lagate hi login ho jayenge. Password ki zaroorat nahi!</div>
+      <div class="f-row"><label>📧 Aapki Gmail</label><input type="email" id="authEmail" placeholder="aapkanaam@gmail.com"></div>
+      <button class="checkout-btn" onclick="sendPin()">📩 PIN email karein</button>
+      <div id="pinArea" style="display:none;margin-top:16px">
+        <div class="f-row"><label>🔑 6-digit PIN <small>(apni Gmail check karein — spam folder bhi)</small></label>
+        <input id="authPin" inputmode="numeric" maxlength="6" placeholder="••••••" style="letter-spacing:8px;text-align:center;font-size:20px;font-weight:800"></div>
+        <button class="checkout-btn" onclick="verifyPin()">✓ Verify & Login</button>
+        <div style="text-align:center;margin-top:9px"><a style="font-size:12.5px;color:var(--green);font-weight:700;cursor:pointer" onclick="sendPin()">↩️ PIN nahi mila? Dobara bhejein</a></div>
+      </div>
+      <div id="authMsg" style="font-size:13px;margin-top:12px;color:var(--sub);text-align:center"></div>`;
+  }
+  $('#authModal').classList.add('on');
+}
+async function sendPin(){
+  const email=($('#authEmail').value||'').trim().toLowerCase();
+  const msg=$('#authMsg');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg.textContent='⚠️ Sahi email likhein (e.g. naam@gmail.com)'; msg.style.color='var(--red)'; return; }
+  if(!botBase()){ msg.textContent='⚠️ Login system abhi live nahi — owner bot server start karein'; msg.style.color='var(--red)'; return; }
+  msg.textContent='📩 PIN bhej raha hai…'; msg.style.color='var(--sub)';
+  try{
+    const r=await fetch(botBase()+'/auth/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const j=await r.json();
+    if(j.ok){ $('#pinArea').style.display='block'; msg.textContent='✅ PIN aapki Gmail pe bhej diya — check karein'; msg.style.color='var(--green)'; $('#authPin').focus(); }
+    else{ msg.textContent='⚠️ '+(j.error||'Masla aa gaya'); msg.style.color='var(--red)'; }
+  }catch(e){ msg.textContent='⚠️ Server se rabta nahi hua'; msg.style.color='var(--red)'; }
+}
+async function verifyPin(){
+  const email=($('#authEmail').value||'').trim().toLowerCase(), pin=($('#authPin').value||'').trim();
+  const msg=$('#authMsg');
+  if(pin.length!==6){ msg.textContent='⚠️ 6-digit PIN likhein'; msg.style.color='var(--red)'; return; }
+  try{
+    const r=await fetch(botBase()+'/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,pin})});
+    const j=await r.json();
+    if(j.ok){
+      MZ_USER={email:j.email,token:j.token};
+      localStorage.setItem('mz_user',JSON.stringify(MZ_USER));
+      updateAuthBtn(); closeAll();
+      toast('✅ Login ho gaya — welcome '+j.email.split('@')[0]+'!');
+    } else { msg.textContent='⚠️ '+(j.error||'Ghalat PIN'); msg.style.color='var(--red)'; }
+  }catch(e){ msg.textContent='⚠️ Server se rabta nahi hua'; msg.style.color='var(--red)'; }
+}
+function logout(){
+  MZ_USER=null; localStorage.removeItem('mz_user');
+  updateAuthBtn(); closeAll(); toast('👋 Logout ho gaya');
 }
 
 /* ================= WHATSAPP ================= */
@@ -910,7 +985,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll();});
 
 /* ================= INIT ================= */
 renderCatbar(); renderCats(); renderOccs(); renderFaq(); renderPills();
-renderDecks(); renderGrid(); syncBadges();
+renderDecks(); renderGrid(); syncBadges(); updateAuthBtn();
 </script>
 </body>
 </html>
