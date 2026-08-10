@@ -57,7 +57,7 @@ Free hosting ka masla: **sleep** ho jati hai aur restart pe **WhatsApp login ur 
    | Key | Value |
    |---|---|
    | `MONGO_URI` | upar wala connection string |
-   | `OWNER_WA` | aapka number e.g. `923001234567` |
+   | `OWNER_WA` | aapka number e.g. `923245443606` |
    | `SITE_URL` | aapki website e.g. `https://yourdomain.com` |
    | `ADMIN_KEY` | saved orders page ka secret key (koi bhi strong) |
 5. Deploy hone pe URL milega: `https://aapka-bot.onrender.com`

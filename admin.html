@@ -257,8 +257,8 @@ tbody tr:hover{background:#f8fbF9}
       <div class="card">
         <h3>📲 WhatsApp number (orders is par aayenge)</h3>
         <div class="fgrid2">
-          <div class="f-row"><label>Owner WhatsApp <small>— country code ke saath, bina + (e.g. 923001234567)</small></label>
-            <input id="setWa" placeholder="923001234567" inputmode="numeric"></div>
+        <div class="f-row"><label>Owner WhatsApp <small>— e.g. 03245443606 ya 923245443606</small></label>
+          <input id="setWa" placeholder="03245443606" inputmode="numeric"></div>
         </div>
         <button class="btn pri" onclick="saveWa()">💾 Save number</button>
       </div>
@@ -649,9 +649,10 @@ function printSlip(i){
 
 /* ================= SETTINGS ================= */
 function saveWa(){
-  const v=$('#setWa').value.replace(/\D/g,'');
-  if(!/^92\d{10}$/.test(v)){ toast('⚠️ Format: 92 + 10 digits (e.g. 923001234567)'); return; }
-  localStorage.setItem('mz_owner_wa', v); toast('✅ WhatsApp number save ho gaya');
+  let v=$('#setWa').value.replace(/\D/g,'');
+  if(/^03\d{9}$/.test(v)) v='92'+v.slice(1);       // 03XXXXXXXXX → 92XXXXXXXXX auto convert
+  if(!/^92\d{10}$/.test(v)){ toast('⚠️ Format: 03XXXXXXXXX ya 92XXXXXXXXXX'); return; }
+  localStorage.setItem('mz_owner_wa', v); toast('✅ WhatsApp number save ho gaya: '+v);
 }
 async function changeCreds(){
   if(await sha256Hex($('#curPw').value||'')!==getPwH()){ toast('⚠️ Current password ghalat hai'); return; }
@@ -690,7 +691,7 @@ function resetProducts(){
 
 /* ================= PUBLISH ================= */
 function exportData(){
-  const wa = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:'923001234567');
+  const wa = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:'923245443606');
   const content = '/* UTStore — store data (Admin Panel se export hua) */\n'
     + 'const DEFAULT_OWNER_WA = "'+wa+'";\n'
     + 'const DEFAULT_COSTS = '+JSON.stringify(costs)+';\n'
