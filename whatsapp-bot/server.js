@@ -32,6 +32,15 @@ const EMAIL_USER = process.env.EMAIL_USER || 'siyalsabe124@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
 const EMAIL_TO   = process.env.EMAIL_TO   || EMAIL_USER;
 
+/* ---- AI REPLIES (Gemini YA OpenRouter — dono free options) ----
+   AI kaam aise karega:
+    1) GEMINI_API_KEY    → Google Gemini (free tier, ai.google.dev)
+    2) OPENROUTER_API_KEY → OpenRouter (ek key, saare models: ChatGPT/Claude/Llama/DeepSeek… free models bhi)
+   dono mein se jo key ho wo use hogi. Key na ho to simple greeting + rate search chalta hai. */
+const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324:free'; // free model default
+
 const fmt = n => 'PKR ' + Number(n || 0).toLocaleString('en-PK');
 
 /* ================= PRODUCTS (data.js se, har 5 min auto-refresh) ================= */
@@ -58,6 +67,82 @@ function searchProducts(query, limit = 3) {
     for (const w of words) if (name.includes(w)) score += w.length >= 4 ? 2 : 1;
     return { p, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => x.p);
+}
+
+/* ---- GEMINI AI: human-like reply in ANY language ----
+   Free tier: ai.google.dev → API key. Bina key ke ye function false return karta hai. */
+function buildProductContext(query, limit = 8) {
+  const found = searchProducts(query, limit);
+  if (found.length) {
+    return found.map(p => `- ${p.name}  →  PKR ${p.price}${p.badges.includes('Free delivery') ? ' (Free delivery)' : ''}`).join('\n');
+  }
+  return PRODUCTS.slice(0, 15).map(p => `- ${p.name}  →  PKR ${p.price}`).join('\n');
+}
+async function geminiReply(userText) {
+  if (!GEMINI_KEY) return null;
+  const ctx = buildProductContext(userText, 10);
+  const system = `Tum "${STORE}" ke WhatsApp customer-service assistant ho (Pakistan, COD e-commerce).
+  Job: customer ka message samjho (KISI BHI language mein ho — Urdu, Roman Urdu, English, mixed), aur NATURAL insani jawab do.
+  Rules:
+  - Apne andar ke product rates inhi se lo (sirf yahi source):\n${ctx}
+  - Agar user ne product/rate poocha to rate + delivery (FREE ya fee) batao aur order karne ko keh sakte ho.
+  - Agar product na mila to politely doosre options pucho ya store ka link do: ${SITE_URL || 'website'}.
+  - Roman Urdu / Urdu / English mein jawab do — jis language mein user ne likha usi mein reply karo.
+  - Chhota, friendly, 2-4 line ka reply — emojis thode se. Koi promo/marketing bahana na lagao.
+  - Agar order/COD/delivery ke baare mein puchhe to: "Cash on Delivery available hai, 3-5 din mein delivery, order ke liye store visit karein ya naam bhejein" bolo.
+  - Kabhi mat bolo ke tum AI/robot ho.`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: system + '\n\nCustomer message: ' + userText }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
+  };
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(GEMINI_KEY), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  if (!r.ok) { console.log('gemini http', r.status); return null; }
+  const j = await r.json();
+  const txt = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0].text;
+  return txt ? txt.trim() : null;
+}
+
+/* ---- OpenRouter AI (same system prompt — ChatGPT/Claude/Llama/DeepSeek free models) ---- */
+async function openrouterReply(userText) {
+  if (!OPENROUTER_KEY) return null;
+  const ctx = buildProductContext(userText, 10);
+  const system = `Tum "${STORE}" ke WhatsApp customer-service assistant ho (Pakistan, COD e-commerce).
+  Job: customer ka message samjho (KISI BHI language mein ho — Urdu, Roman Urdu, English, mixed), aur NATURAL insani jawab do.
+  Rules:
+  - Apne andar ke product rates inhi se lo (sirf yahi source):\n${ctx}
+  - Agar user ne product/rate poocha to rate + delivery (FREE ya fee) batao aur order karne ko keh sakte ho.
+  - Agar product na mila to politely doosre options pucho ya store ka link do: ${SITE_URL || 'website'}.
+  - Roman Urdu / Urdu / English mein jawab do — jis language mein user ne likha usi mein reply karo.
+  - Chhota, friendly, 2-4 line ka reply — emojis thode se. Koi promo/marketing bahana na lagao.
+  - Agar order/COD/delivery ke baare mein puchhe to: "Cash on Delivery available hai, 3-5 din mein delivery, order ke liye store visit karein ya naam bhejein" bolo.
+  - Kabhi mat bolo ke tum AI/robot ho.`;
+  const body = {
+    model: OPENROUTER_MODEL,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: userText }
+    ],
+    temperature: 0.7,
+    max_tokens: 300
+  };
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + OPENROUTER_KEY, 'HTTP-Referer': SITE_URL || 'https://localhost', 'X-Title': STORE },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { console.log('openrouter http', r.status); return null; }
+  const j = await r.json();
+  const txt = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  return txt ? txt.trim() : null;
+}
+
+/* ---- Unified: pehle Gemini, warna OpenRouter (jo key available ho) ---- */
+async function aiReply(userText) {
+  if (GEMINI_KEY) { const g = await geminiReply(userText); if (g) return g; }
+  if (OPENROUTER_KEY) { const o = await openrouterReply(userText); if (o) return o; }
+  return null;
 }
 
 /* ================= PDF INVOICE (auto-generate) ================= */
@@ -152,8 +237,27 @@ let ODOO = null;
 try { ODOO = require('./odoo'); console.log(ODOO.configured() ? '🗂 Odoo: configured ✓' : 'ℹ️  Odoo env vars nahi — ODOO_URL/DB/USER/API_KEY lagayein to orders Odoo mein bhi jayenge (README dekhein)'); }
 catch (e) { console.log('odoo.js load error:', e.message); }
 
-/* ================= MONGO (optional — session + orders SAVE) ================= */
+/* ================= ORDER STORE (MongoDB ya in-memory fallback) ================= */
 let OrderModel = null;
+const MEM_ORDERS = [];   // jab MONGO_URI set na ho to orders yahan keep — jab tak server chalta hai
+
+async function saveOrder(o) {
+  o.status = o.status || 'new';
+  if (OrderModel) { try { await OrderModel.create(o); console.log('💾 Order DB mein save:', o.oid); return true; } catch (e) { console.log('db save error:', e.message); } }
+  MEM_ORDERS.unshift(o);
+  return true;
+}
+async function listOrders(limit = 200) {
+  if (OrderModel) return await OrderModel.find().sort({ ts: -1 }).limit(limit).lean();
+  return MEM_ORDERS.slice(0, limit);
+}
+async function updateOrderStatus(oid, status) {
+  if (OrderModel) { await OrderModel.updateOne({ oid }, { $set: { status } }); return true; }
+  const o = MEM_ORDERS.find(x => x.oid === oid);
+  if (o) { o.status = status; return true; }
+  return false;
+}
+
 async function makeAuth() {
   if (!MONGO_URI) {
     console.log('ℹ️  MONGO_URI set nahi — LocalAuth (local files). Free save ke liye MONGO_URI lagayein (README dekhein).');
@@ -186,7 +290,7 @@ async function start() {
   client.on('auth_failure', m => console.log('❌ Auth failure:', m));
   client.on('disconnected', r => { connected = false; console.log('🔌 Disconnected:', r); });
 
-  /* ---------- AUTO RATE-REPLY ---------- */
+  /* ---------- AUTO REPLY (Gemini AI human-like + local rate fallback) ---------- */
   client.on('message', async msg => {
     try {
       if (msg.fromMe || msg.from === 'status@broadcast' || msg.from.endsWith('@g.us')) return;
@@ -194,6 +298,15 @@ async function start() {
       if (text.length < 3) return;
       const low = text.toLowerCase();
 
+      /* 1) PEHLE AI — any language, human jaisa jawab (Gemini ya OpenRouter) */
+      if (GEMINI_KEY || OPENROUTER_KEY) {
+        try {
+          const aiReplyText = await aiReply(text);
+          if (aiReplyText) { await msg.reply(aiReplyText); return; }
+        } catch (e) { console.log('ai error:', e.message); }
+      }
+
+      /* 2) Nahi to simple greeting */
       if (/^(hi|hello|salam|assalam|aoa|hey|adab)\b/.test(low)) {
         await msg.reply(
           `Assalam o Alaikum! 👋 *${STORE}* mein khush aamdeed.\n\n` +
@@ -203,6 +316,7 @@ async function start() {
         return;
       }
 
+      /* 3) Local rate search (free, AI key ka intezar nahi) */
       const asksPrice = /rate|price|keemat|kimat|qimat|kitn[aeiy]|cost|₨|pkr|rs\b/.test(low);
       const cleaned = low.replace(/rate|price|keemat|kimat|qimat|kitn[aeiy]a?|kitnay|ki|ka|ke|kya|hai|batao|batayein|bata|please|plz|pls|is|kaa|mein|\?|cost|of|the|pkr|rs\b/g, ' ').replace(/\s+/g, ' ').trim();
       const results = searchProducts(cleaned.length >= 3 ? cleaned : low);
@@ -225,7 +339,10 @@ async function start() {
     } catch (e) { console.log('reply error:', e.message); }
   });
 
-  client.initialize();
+  client.initialize().catch(e => {
+    console.log('⚠️ WhatsApp initialize fail (Chrome nahi mila ya koi aur issue):', e.message);
+    console.log('   Server chal raha hai — orders/API kaam karte rahenge. QR login ke liye Chrome zaroori hai.');
+  });
 }
 
 /* ================= WEB SERVER ================= */
@@ -265,7 +382,7 @@ function page(icon, color, title, sub, refresh) {
   <body><div><span>${icon}</span><h1>${title}</h1><p>${sub}</p></div></body></html>`;
 }
 
-app.get('/health', (req, res) => res.json({ ok: true, connected, mongo: !!OrderModel, odoo: !!(ODOO && ODOO.configured()), email: !!EMAIL_PASS, owner: OWNER, products: PRODUCTS.length }));
+app.get('/health', (req, res) => res.json({ ok: true, connected, mongo: !!OrderModel, odoo: !!(ODOO && ODOO.configured()), email: !!EMAIL_PASS, ai: !!(GEMINI_KEY || OPENROUTER_KEY), aiProvider: GEMINI_KEY ? 'gemini' : (OPENROUTER_KEY ? 'openrouter' : 'none'), owner: OWNER, products: PRODUCTS.length }));
 
 /* ================= EMAIL OTP SIGNUP/LOGIN (customer apni Gmail se PIN le kar login) ================= */
 const crypto = require('crypto');
@@ -317,7 +434,7 @@ app.post('/order', async (req, res) => {
   try {
     const o = req.body || {};
     if (!o.oid || !o.name) return res.status(400).json({ ok: false, error: 'invalid order' });
-    if (OrderModel) { try { await OrderModel.create(o); console.log('💾 Order DB mein save:', o.oid); } catch (e) { console.log('db save error:', e.message); } }
+    await saveOrder(o);
 
     /* 2) Odoo mein Sale Order (agar configured hai) */
     let odooSO = null;
@@ -354,18 +471,19 @@ app.post('/order', async (req, res) => {
       waSent = true;
     }
     if (!waSent) console.log('⚠️ WhatsApp connected nahi — order DB' + (emailed ? ' + email' : '') + ' mein save ho gaya');
-    res.json({ ok: true, saved: !!OrderModel, waSent, emailed, pdf: !!pdfBuf, odoo: odooSO ? odooSO.name : null });
+    res.json({ ok: true, saved: !!OrderModel || MEM_ORDERS.length > 0, waSent, emailed, pdf: !!pdfBuf, odoo: odooSO ? odooSO.name : null });
   } catch (e) {
     console.log('order error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-/* Save huye orders browser mein dekhein: /orders?key=ADMIN_KEY */
+/* Save huye orders browser mein dekhein: /orders?key=ADMIN_KEY
+   Admin Panel ke liye JSON: /api/orders?key=ADMIN_KEY&format=json */
 app.get('/orders', async (req, res) => {
   if (req.query.key !== ADMIN_KEY) return res.status(401).send(page('🔒', '#e5484d', 'Unauthorized', 'Sahi key ke saath kholein: /orders?key=YOUR_KEY'));
-  if (!OrderModel) return res.send(page('🍃', '#8a6100', 'MongoDB set nahi', 'Orders save karne ke liye MONGO_URI env variable lagayein — README dekhein.'));
-  const list = await OrderModel.find().sort({ ts: -1 }).limit(200).lean();
+  if (!OrderModel && !MEM_ORDERS.length) return res.send(page('🍃', '#8a6100', 'Koi order nahi', 'MongoDB set nahi — orders in-memory save honge jab tak server chalta hai. MONGO_URI lagayein to permanently save rahenge (README dekhein).'));
+  const list = await listOrders(200);
   const rows = list.map(o => `<tr><td><b>${o.oid}</b><br><small>${new Date(o.ts).toLocaleString('en-PK')}</small></td>
     <td>${(o.items || []).map(i => '▪️ ' + i.name + ' ×' + i.qty).join('<br>')}</td>
     <td>👤 ${o.name}<br>📱 ${o.phone}<br><small>📍 ${o.addr}</small></td>
@@ -375,8 +493,36 @@ app.get('/orders', async (req, res) => {
   table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(8,68,51,.08)}
   th{background:#0b5d43;color:#fff;text-align:left;padding:12px 14px;font-size:12px;text-transform:uppercase}
   td{padding:12px 14px;border-bottom:1px solid #eef3f0;font-size:13px;vertical-align:top}.meta{color:#5b6b62;font-size:13px;margin:6px 0 18px}</style></head>
-  <body><h1>🧾 Saved Orders — ${STORE}</h1><div class="meta">${list.length} orders · database mein permanently save · <a href="?key=${req.query.key}">refresh</a></div>
+  <body><h1>🧾 Saved Orders — ${STORE}</h1><div class="meta">${list.length} orders · ${OrderModel ? 'database mein permanently save' : 'in-memory (MONGO_URI lagayein to permanent)'} · <a href="?key=${req.query.key}">refresh</a></div>
   <table><thead><tr><th>Order</th><th>Items</th><th>Customer</th><th>Total</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="text-align:center;padding:40px;color:#5b6b62">Abhi koi order nahi</td></tr>'}</tbody></table></body></html>`);
+});
+
+/* Admin Panel ke liye JSON API — live orders + status update */
+app.get('/api/orders', async (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized — sahi ADMIN_KEY use karein' });
+  const list = await listOrders(Number(req.query.limit) || 200);
+  res.json({ ok: true, orders: list, mongo: !!OrderModel });
+});
+
+/* Admin Panel se products LIVE publish (rates/images update hote hi website pe) */
+app.get('/api/products', (req, res) => res.json({ ok: true, products: PRODUCTS }));
+app.post('/api/products', (req, res) => {
+  const key = (req.body || {}).key || req.query.key;
+  if (key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const arr = (req.body || {}).products;
+  if (!Array.isArray(arr)) return res.status(400).json({ ok: false, error: 'products array chahiye' });
+  PRODUCTS = arr;
+  console.log('📦 Admin se ' + arr.length + ' products LIVE update ho gaye');
+  res.json({ ok: true, count: arr.length });
+});
+
+app.post('/api/order/status', async (req, res) => {
+  const key = (req.body || {}).key || req.query.key;
+  if (key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const { oid, status } = req.body || {};
+  if (!oid || !['new', 'confirmed', 'delivered', 'cancelled'].includes(status)) return res.status(400).json({ ok: false, error: 'invalid oid/status' });
+  const ok = await updateOrderStatus(oid, status);
+  res.json({ ok });
 });
 
 app.get('/', (req, res) => res.redirect('/qr'));

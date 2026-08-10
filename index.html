@@ -513,6 +513,23 @@ let OWNER_WHATSAPP = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNE
 let PRODUCTS = (typeof DEFAULT_PRODUCTS!=='undefined') ? DEFAULT_PRODUCTS : [];
 try{ const o=localStorage.getItem('mz_products_live'); if(o) PRODUCTS=JSON.parse(o); }catch(e){}
 
+/* Admin panel se LIVE products (rates/images update) — bot se fetch, fail ho to data.js use hoti hai */
+function botBase(){ return (localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'')).replace(/\/+$/,''); }
+async function loadLiveProducts(){
+  const b=botBase(); if(!b) return;
+  try{
+    const r=await fetch(b+'/api/products',{signal:AbortSignal.timeout(6000)});
+    if(!r.ok) return;
+    const j=await r.json();
+    if(j.ok && Array.isArray(j.products) && j.products.length){
+      PRODUCTS=j.products;
+      try{ localStorage.setItem('mz_products_live', JSON.stringify(PRODUCTS)); }catch(e){}
+      renderGrid(); renderDecks(); syncBadges();
+    }
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',()=>loadLiveProducts());
+
 const DECKS = [
  ["azadi","14th August Special 🇵🇰"],
  ["free","Delivery Fee Se Azadi ⭐"],
@@ -894,7 +911,6 @@ async function placeOrder(){
 /* ================= AUTH (Gmail PIN login) ================= */
 let MZ_USER = null;
 try{ MZ_USER = JSON.parse(localStorage.getItem('mz_user')||'null'); }catch(e){}
-function botBase(){ return (localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'')).replace(/\/+$/,''); }
 function updateAuthBtn(){
   const b=$('#authBtn'); if(!b) return;
   if(MZ_USER){ b.innerHTML='✅'; b.title='Logged in: '+MZ_USER.email; }

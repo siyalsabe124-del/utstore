@@ -105,6 +105,28 @@ Koi bhi order kare → bot **khud professional PDF receipt banata hai** aur:
 
 ---
 
+## 🤖 AI AUTO-REPLY — koi bhi language, human jaisa jawab! (FREE)
+
+Bot ab **AI** se baat karta hai — do free options, **dono laga bhi sakte hain** (jo bhi ho chalega):
+- 🇵🇰 **Urdu, Roman Urdu, English, ya koi bhi language** samajhta hai — jis language mein likho usi mein jawab
+- 💬 Reply itna natural hota hai jaise insaan kar raha ho
+- 💰 Product rates website ke data se — "suit ka rate?" puche to sahi price batata hai
+
+### Option A — Google Gemini (free, asaan):
+1. [aistudio.google.com](https://aistudio.google.com) → Google account se login
+2. **Get API key** → Create API key → copy
+3. Render pe env var: **`GEMINI_API_KEY`** = `AIza...`
+
+### Option B — OpenRouter (ek key, saare models):
+1. [openrouter.ai](https://openrouter.ai) → account banao → **Keys** → Create Key (free)
+2. Render pe env var: **`OPENROUTER_API_KEY`** = `sk-or-...`
+3. (Optional) **`OPENROUTER_MODEL`** = model naam, e.g. `deepseek/deepseek-chat-v3-0324:free` (free model default)
+
+> 💡 Koi key na ho to bhi bot chalta hai (simple greeting + rate search). Key set karo to AI mode on.
+> ⚠️ Gemini free ~1500/day · OpenRouter free models ke bhi rozana limits hain. Store ke liye kaafi.
+
+---
+
 ## 🗂 ODOO se ATTACH — website ka order khud Odoo mein!
 
 Har naya order automatically Odoo mein bhi ban jata hai:

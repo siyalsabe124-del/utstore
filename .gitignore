@@ -4,3 +4,7 @@ node_modules/
 *.zip
 scrape_download.py
 __pycache__/
+.cache/
+.config/
+.local/
+whatsapp-bot/node_modules/

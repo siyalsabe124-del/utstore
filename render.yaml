@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: utstore-whatsapp-bot
+    runtime: node
+    rootDir: whatsapp-bot
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: OWNER_WA
+        value: "923245443606"
+      - key: SITE_URL
+        sync: false
+      - key: ADMIN_KEY
+        value: "admin123"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_TO
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: "deepseek/deepseek-chat-v3-0324:free"

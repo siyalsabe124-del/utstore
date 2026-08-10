@@ -248,6 +248,15 @@ tbody tr:hover{background:#f8fbF9}
         <div class="sp"><button class="btn dan" onclick="clearOrders()">🗑 Clear all</button></div>
       </div>
       <div class="warn">💡 Ye orders list <b>is device/browser</b> pe place huye orders dikhati hai. Asal customers ke orders aapko <b>WhatsApp pe</b> milte hain (checkout automatic WhatsApp kholta hai). Live database wala system chahiye to backend lagana hoga — baad mein add kar saktay hain.</div>
+      <div class="card">
+        <h3>🟢 Live orders (WhatsApp bot se)</h3>
+        <div class="ok" style="margin-bottom:12px">Bot URL + Admin Key ⚙️ Settings mein set karein, phir yahan se <b>saare real customers ke orders</b> fetch karein — kisi bhi device/mobile se. Har order ka <b>🖨 Invoice</b> bhi print kar sakte hain.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn pri" onclick="loadLiveOrders()">📥 Fetch live orders</button>
+          <span id="liveOrdersStatus" style="align-self:center;font-size:12.5px;color:var(--sub)"></span>
+        </div>
+        <div id="liveOrdersList"></div>
+      </div>
       <div id="ordersList"></div>
     </section>
 
@@ -276,7 +285,9 @@ tbody tr:hover{background:#f8fbF9}
         <div class="ok" style="margin-bottom:14px">Bot server chal raha ho to uska URL yahan likhein — phir orders <b>khud-ba-khud</b> aapke WhatsApp pe aayenge (customer ko send dabana nahi parega) aur bot logon ke rate sawalon ka khud jawab dega.<br><small>Setup ke liye <b>whatsapp-bot</b> folder ka README dekhein — khali chhoodein to purana wa.me tareeqa chalta rahega.</small></div>
         <div class="f-row"><label>Bot URL <small>— e.g. https://aapka-bot.onrender.com</small></label>
           <input id="setBot" placeholder="https://…"></div>
-        <button class="btn pri" onclick="saveBot()">💾 Save bot URL</button>
+        <div class="f-row"><label>Admin Key <small>— bot ka ADMIN_KEY (orders fetch karne ke liye)</small></label>
+          <input id="setAdminKey" placeholder="admin123"></div>
+        <button class="btn pri" onclick="saveBot()">💾 Save bot URL + key</button>
         <div style="font-size:12px;color:var(--sub);margin-top:9px">Status: <b id="botStatus">—</b></div>
       </div>
       <div class="card">
@@ -303,8 +314,10 @@ tbody tr:hover{background:#f8fbF9}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn pri" onclick="exportData()">⬇️ Download data.js</button>
           <button class="btn" onclick="document.getElementById('impFile').click()">📥 Import data.js</button>
+          <button class="btn g" onclick="pushToBot()">🤖 Upload to bot (LIVE)</button>
           <input type="file" id="impFile" accept=".js,.json" style="display:none" onchange="importData(event)">
         </div>
+        <div style="font-size:12px;color:var(--sub);margin-top:10px" id="pushStatus"></div>
       </div>
       <div class="ok">🖼️ <b>Upload ki gayi images</b> file ke andar hi save ho jati hain (base64) — alag se upload karne ki zaroorat nahi. Bari images se file heavy ho sakti hai, is liye chhoti/compressed pics use karein.</div>
     </section>
@@ -441,7 +454,7 @@ function goPanel(p){
   if(p==='products') renderTable();
   if(p==='orders') renderOrders();
   if(p==='dash') renderDash();
-  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); checkBot(); }
+  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); $('#setAdminKey').value = localStorage.getItem('mz_admin_key') || ''; checkBot(); }
 }
 function refreshCounts(){
   const os=getOrders().filter(o=>o.status==='new').length;
@@ -622,6 +635,58 @@ function setStatus(i,s){ const os=getOrders(); os[i].status=s; localStorage.setI
 function delOrder(i){ if(!confirm('Ye order delete karein?')) return; const os=getOrders(); os.splice(i,1); localStorage.setItem('mz_orders',JSON.stringify(os)); renderOrders(); renderDash(); refreshCounts(); }
 function clearOrders(){ if(!confirm('Saare orders delete ho jayenge. Pakka?')) return; localStorage.removeItem('mz_orders'); renderOrders(); renderDash(); refreshCounts(); }
 
+/* ================= LIVE ORDERS (WhatsApp bot se JSON fetch) ================= */
+function botBaseURL(){ return (localStorage.getItem('mz_bot_url')||'').replace(/\/+$/,''); }
+let LIVE_ORDERS = [];
+function liveOrderCard(o, i){
+  return `<div class="ocard">
+    <div class="ohead">
+      <span class="oid">🧾 ${o.oid}</span>
+      <span class="ot">${new Date(o.ts).toLocaleString('en-PK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="chip st-${o.status}">${o.status}</span>
+      <span class="ototal">${fmt(o.total)}</span>
+    </div>
+    <div class="oitems">${(o.items||[]).map(it=>`▪️ ${it.name} <b>× ${it.qty}</b> — ${fmt(it.price*it.qty)}`).join('<br>')}</div>
+    <div class="ocust">👤 <b>${o.name}</b> &nbsp;·&nbsp; 📱 <b>${o.phone}</b>${o.email?' &nbsp;·&nbsp; 📧 <b>'+o.email+'</b>':''} &nbsp;·&nbsp; 📍 ${o.addr}<br>💵 COD &nbsp;·&nbsp; 🚚 Delivery: ${o.fee?fmt(o.fee):'FREE'}</div>
+    <div class="oacts">
+      <select onchange="setLiveStatus('${o.oid}',this.value)">
+        ${['new','confirmed','delivered','cancelled'].map(s=>`<option ${o.status===s?'selected':''} value="${s}">${s}</option>`).join('')}
+      </select>
+      <button class="btn s" onclick="printLiveSlip(${i})">🖨 Invoice</button>
+      <a class="btn s g" target="_blank" href="https://wa.me/${String(o.phone||'').replace(/^0/,'92').replace(/\D/g,'')}?text=${encodeURIComponent('Assalam o Alaikum '+o.name+'! Aapka order '+o.oid+' ('+fmt(o.total)+') confirm ho gaya hai. Shukriya! 🛍')}">💬 Customer ko WhatsApp</a>
+    </div>
+  </div>`;
+}
+function printLiveSlip(i){ const o=LIVE_ORDERS[i]; if(o) openSlipPrint(o); }
+async function loadLiveOrders(){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'';
+  const st=$('#liveOrdersStatus');
+  if(!url||!key){ st.innerHTML='⚠️ Pehle ⚙️ Settings mein bot URL + Admin Key set karein'; st.style.color='var(--red)'; return; }
+  st.innerHTML='⏳ Fetching…'; st.style.color='var(--sub)';
+  try{
+    const r=await fetch(url+'/api/orders?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(8000)});
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    if(!j.ok) throw 0;
+    LIVE_ORDERS=j.orders||[];
+    $('#liveOrdersList').innerHTML = LIVE_ORDERS.length
+      ? LIVE_ORDERS.map(liveOrderCard).join('')
+      : `<div class="empty" style="padding:26px"><div>🧾</div>Abhi koi live order nahi</div>`;
+    st.innerHTML='✅ '+LIVE_ORDERS.length+' live orders ('+(j.mongo?'database':'memory')+')';
+    st.style.color='var(--green)';
+  }catch(e){ st.innerHTML='🔴 Fetch fail — URL/key check karein'; st.style.color='var(--red)'; $('#liveOrdersList').innerHTML=''; }
+}
+async function setLiveStatus(oid,status){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'';
+  if(!url||!key){ toast('⚠️ Bot URL + key set karein'); return; }
+  try{
+    const r=await fetch(url+'/api/order/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,oid,status})});
+    const j=await r.json();
+    if(j.ok){ toast('✅ Status: '+status); loadLiveOrders(); }
+    else toast('⚠️ Update fail');
+  }catch(e){ toast('🔴 Bot se rabta nahi'); }
+}
+
 /* ================= ORDER SLIP (professional print) ================= */
 function printSlip(i){
   const o=getOrders()[i]; if(!o) return;
@@ -649,7 +714,9 @@ function saveBot(){
   const v=$('#setBot').value.trim();
   if(v && !/^https?:\/\//.test(v)){ toast('⚠️ URL http/https se shuru ho'); return; }
   if(v) localStorage.setItem('mz_bot_url', v.replace(/\/+$/,'')); else localStorage.removeItem('mz_bot_url');
-  toast('✅ Bot URL save ho gaya'); checkBot();
+  const k=$('#setAdminKey').value.trim();
+  if(k) localStorage.setItem('mz_admin_key', k); else localStorage.removeItem('mz_admin_key');
+  toast('✅ Bot URL + key save ho gaye'); checkBot();
 }
 async function checkBot(){
   const v=localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''), el=$('#botStatus');
@@ -697,10 +764,24 @@ function importData(ev){
       if(wm) localStorage.setItem('mz_owner_wa', wm[1]);
       saveAll(); renderTable(); renderDash();
       toast('✅ Import kamyab — '+PRODUCTS.length+' products load');
-    }catch(err){ toast('⚠️ File theek nahi — export ki hui data.js use karein'); }
+    }catch(err){       toast('⚠️ File theek nahi — export ki hui data.js use karein'); }
     ev.target.value='';
   };
   rd.readAsText(f);
+}
+
+/* ================= UPLOAD PRODUCTS TO BOT (LIVE publish) ================= */
+async function pushToBot(){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'';
+  const st=$('#pushStatus');
+  if(!url||!key){ st.innerHTML='⚠️ Pehle ⚙️ Settings mein bot URL + Admin Key set karein'; st.style.color='var(--red)'; return; }
+  st.innerHTML='⏳ Uploading…'; st.style.color='var(--sub)';
+  try{
+    const r=await fetch(url+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,products:PRODUCTS})});
+    const j=await r.json();
+    if(j.ok){ st.innerHTML='✅ '+j.count+' products bot pe LIVE publish ho gaye — website pe turant dikh jayenge'; st.style.color='var(--green)'; toast('🤖 Products LIVE ho gaye!'); }
+    else { st.innerHTML='⚠️ '+(j.error||'Upload fail'); st.style.color='var(--red)'; }
+  }catch(e){ st.innerHTML='🔴 Bot se rabta nahi — URL check karein'; st.style.color='var(--red)'; }
 }
 
 /* refresh counts badge fix */
