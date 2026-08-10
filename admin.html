@@ -440,7 +440,7 @@ function goPanel(p){
   if(p==='products') renderTable();
   if(p==='orders') renderOrders();
   if(p==='dash') renderDash();
-  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url')||''; checkBot(); }
+  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); checkBot(); }
 }
 function refreshCounts(){
   const os=getOrders().filter(o=>o.status==='new').length;
@@ -671,7 +671,7 @@ function saveBot(){
   toast('✅ Bot URL save ho gaya'); checkBot();
 }
 async function checkBot(){
-  const v=localStorage.getItem('mz_bot_url'), el=$('#botStatus');
+  const v=localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''), el=$('#botStatus');
   if(!el) return;
   if(!v){ el.textContent='Bot set nahi — wa.me tareeqa use ho raha hai'; el.style.color='var(--sub)'; return; }
   el.textContent='Checking…';

@@ -891,7 +891,7 @@ async function placeOrder(){
 /* ================= AUTH (Gmail PIN login) ================= */
 let MZ_USER = null;
 try{ MZ_USER = JSON.parse(localStorage.getItem('mz_user')||'null'); }catch(e){}
-function botBase(){ return (localStorage.getItem('mz_bot_url')||'').replace(/\/+$/,''); }
+function botBase(){ return (localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'')).replace(/\/+$/,''); }
 function updateAuthBtn(){
   const b=$('#authBtn'); if(!b) return;
   if(MZ_USER){ b.innerHTML='✅'; b.title='Logged in: '+MZ_USER.email; }
