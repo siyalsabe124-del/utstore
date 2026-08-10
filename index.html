@@ -505,6 +505,7 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
 <div class="toasts" id="toasts"></div>
 
 <script src="data.js"></script>
+<script src="slip.js"></script>
 <script>
 /* ================= SETTINGS & DATA ================= */
 /* Apna WhatsApp number Admin Panel → Settings se bhi change kar saktay hain.   */
@@ -875,11 +876,13 @@ async function placeOrder(){
   if(!botSent){ try{ window.open(waURL,'_blank'); }catch(e){} }  /* fallback: wa.me flow */
 
   cart={}; save(); syncBadges(); renderCart(); renderGrid(); renderDecks();
+  window.LAST_ORDER = orderData;
   $('#coBody').innerHTML=`<div class="success">
     <div class="tick">✓</div>
     <h2>Order placed, shukriya ${name.split(' ')[0]}! 🎉</h2>
     <p>Your order <b>${total}</b> is confirmed.<br>We'll SMS updates to <b>${phone}</b> and deliver in 3–5 working days. Pay cash when it arrives.</p>
     <div class="oid">Order ID: ${oid}</div>
+    <button class="checkout-btn" style="max-width:320px;margin:0 auto 10px;background:#084433" onclick="openSlipPrint(window.LAST_ORDER)">🖨️ Apni Slip / Invoice dekhein</button><br>
     ${botSent
       ? `<p style="font-size:12.5px;color:var(--green);font-weight:700;margin-bottom:10px">✅ Aapka order owner ke WhatsApp pe auto bhej diya gaya hai!</p>`
       : `<p style="font-size:12.5px;margin-bottom:8px">👇 Order owner ko bhejnay ke liye WhatsApp pe SEND daba dein:</p>

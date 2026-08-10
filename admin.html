@@ -369,6 +369,7 @@ tbody tr:hover{background:#f8fbF9}
 <div class="toasts" id="toasts"></div>
 
 <script src="data.js"></script>
+<script src="slip.js"></script>
 <script>
 /* ================= CONSTS ================= */
 const DECKS = [
@@ -621,30 +622,10 @@ function setStatus(i,s){ const os=getOrders(); os[i].status=s; localStorage.setI
 function delOrder(i){ if(!confirm('Ye order delete karein?')) return; const os=getOrders(); os.splice(i,1); localStorage.setItem('mz_orders',JSON.stringify(os)); renderOrders(); renderDash(); refreshCounts(); }
 function clearOrders(){ if(!confirm('Saare orders delete ho jayenge. Pakka?')) return; localStorage.removeItem('mz_orders'); renderOrders(); renderDash(); refreshCounts(); }
 
-/* ================= ORDER SLIP (print) ================= */
+/* ================= ORDER SLIP (professional print) ================= */
 function printSlip(i){
   const o=getOrders()[i]; if(!o) return;
-  const w=window.open('','_blank','width=400,height=640');
-  if(!w){ toast('⚠️ Popup block hai — allow karein'); return; }
-  const rows=o.items.map(x=>`<tr><td>${x.name}</td><td style="text-align:center;white-space:nowrap">× ${x.qty}</td><td class="r">${fmt(x.price*x.qty)}</td></tr>`).join('');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Slip ${o.oid}</title><style>
-  body{font-family:Courier,monospace;width:300px;margin:16px auto;color:#17211c;font-size:12px}
-  .c{text-align:center}.b{border-top:1.5px dashed #999;margin:9px 0}.big{font-size:17px;font-weight:bold;letter-spacing:.5px}
-  table{width:100%;border-collapse:collapse}td{padding:3px 0;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:10px}
-  .tot{font-weight:bold;font-size:14.5px}button{margin-top:12px;padding:9px 22px;font-weight:700;cursor:pointer}</style></head><body>
-  <div class="c"><div class="big">🛍 UTStore</div><div>Cash on Delivery — Pakistan</div><div>— ORDER SLIP —</div></div>
-  <div class="b"></div>
-  <div>Order: <b>${o.oid}</b><br>Date: ${new Date(o.ts).toLocaleString('en-PK')}<br>Customer: <b>${o.name}</b><br>Phone: ${o.phone}${o.email?'<br>Email: '+o.email:''}<br>Address: ${o.addr}</div>
-  <div class="b"></div>
-  <table>${rows}</table>
-  <div class="b"></div>
-  <table><tr><td>Subtotal</td><td class="r">${fmt(o.sub)}</td></tr>
-  <tr><td>Delivery</td><td class="r">${o.fee?fmt(o.fee):'FREE'}</td></tr>
-  <tr class="tot"><td>TOTAL (COD)</td><td class="r">${fmt(o.total)}</td></tr></table>
-  <div class="b"></div>
-  <div class="c">Shukriya! 7-day easy returns<br>💵 Pay cash on delivery<br><br><b>Made by Umair ❤️</b><br><button onclick="window.print()">🖨 Print</button></div>
-  </body></html>`);
-  w.document.close(); w.focus();
+  openSlipPrint(o);
 }
 
 /* ================= SETTINGS ================= */
