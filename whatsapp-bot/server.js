@@ -58,15 +58,28 @@ let PRODUCTS = loadProducts();
 console.log(`📦 ${PRODUCTS.length} products loaded`);
 setInterval(() => { PRODUCTS = loadProducts(); }, 5 * 60 * 1000);
 
+/* Mobile accessories pehle dikhao, phir baaki sab */
+const MOBILE_TERMS = ['mobile', 'phone', 'earbud', 'headphone', 'bluetooth', 'charger', 'camera',
+  'sim card', 'keychain', 'pod', 'buds', 'cable', 'tablet', 'power bank', 'laptop bag',
+  'wifi camera', 'ring light', 'tripod', 'selfie', 'wireless', 'ipad', 'screen guard',
+  'mobile cover', 'phone case'];
+function isMobileAccessory(p) {
+  const name = (p.name || '').toLowerCase();
+  return MOBILE_TERMS.some(t => new RegExp('(^|[^a-z])' + t.replace(/ /g, '\\s') + '([^a-z]|$)').test(name));
+}
+function orderProducts(list) {
+  return list.slice().sort((a, b) => (isMobileAccessory(b) ? 1 : 0) - (isMobileAccessory(a) ? 1 : 0));
+}
+
 function searchProducts(query, limit = 3) {
   const words = query.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
   if (!words.length) return [];
-  return PRODUCTS.map(p => {
+  return orderProducts(PRODUCTS.map(p => {
     const name = p.name.toLowerCase();
     let score = 0;
     for (const w of words) if (name.includes(w)) score += w.length >= 4 ? 2 : 1;
     return { p, score };
-  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => x.p);
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => x.p));
 }
 
 /* ---- GEMINI AI: human-like reply in ANY language ----
@@ -76,7 +89,7 @@ function buildProductContext(query, limit = 8) {
   if (found.length) {
     return found.map(p => `- ${p.name}  →  PKR ${p.price}${p.badges.includes('Free delivery') ? ' (Free delivery)' : ''}`).join('\n');
   }
-  return PRODUCTS.slice(0, 15).map(p => `- ${p.name}  →  PKR ${p.price}`).join('\n');
+  return orderProducts(PRODUCTS).slice(0, 15).map(p => `- ${p.name}  →  PKR ${p.price}`).join('\n');
 }
 async function geminiReply(userText) {
   if (!GEMINI_KEY) return null;
@@ -331,10 +344,15 @@ async function start() {
         out += `\n━━━━━━━━━━━━━━━\n💵 Cash on Delivery · ↩️ 7-day returns\nOrder ke liye website visit karein ya yahan reply karein 😊`;
         await msg.reply(out);
       } else if (asksPrice) {
-        await msg.reply(
-          `Maaf kijiye — "${text}" wala product nahi mil saka 🙁\n` +
-          `Thora aur naam likh kar poochein (masalan "unstitched suit", "earbuds", "makeup kit")\n` +
-          (SITE_URL ? `ya poori store yahan dekhein: ${SITE_URL}` : ''));
+        const mobiles = orderProducts(PRODUCTS).filter(isMobileAccessory).slice(0, 4);
+        let out = `Maaf kijiye — "${text}" wala product nahi mil saka 🙁\n\n`;
+        if (mobiles.length) {
+          out += `📱 *Mobile Accessories* (hamari pehli pasand):\n`;
+          mobiles.forEach(p => { out += `• ${p.name} — ${fmt(p.price)}\n`; });
+        }
+        out += `\nThora aur naam likh kar poochein (masalan "unstitched suit", "earbuds", "makeup kit")\n` +
+          (SITE_URL ? `ya poori store yahan dekhein: ${SITE_URL}` : '');
+        await msg.reply(out);
       }
     } catch (e) { console.log('reply error:', e.message); }
   });
