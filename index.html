@@ -882,7 +882,7 @@ async function placeOrder(){
 
   /* ---- TRY BOT first: auto-send order to owner's WhatsApp (no send button needed) ---- */
   const orderData={oid,name,phone,addr,email:MZ_USER?MZ_USER.email:'',items:Object.keys(cart).map(id=>{const p=PRODUCTS.find(x=>x.id==id);return p?{id:p.id,name:p.name,qty:cart[id],price:p.price}:null}).filter(Boolean),sub:lastTotals.sub,fee:lastTotals.fee,total:lastTotals.sub+lastTotals.fee};
-  const botURL=localStorage.getItem('mz_bot_url')||'';
+  const botURL=botBase();
   let botSent=false;
   if(botURL){
     try{

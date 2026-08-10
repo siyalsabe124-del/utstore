@@ -648,7 +648,7 @@ function delOrder(i){ if(!confirm('Ye order delete karein?')) return; const os=g
 function clearOrders(){ if(!confirm('Saare orders delete ho jayenge. Pakka?')) return; localStorage.removeItem('mz_orders'); renderOrders(); renderDash(); refreshCounts(); }
 
 /* ================= LIVE ORDERS (WhatsApp bot se JSON fetch) ================= */
-function botBaseURL(){ return (localStorage.getItem('mz_bot_url')||'').replace(/\/+$/,''); }
+function botBaseURL(){ return (localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'')).replace(/\/+$/,''); }
 let LIVE_ORDERS = [];
 function liveOrderCard(o, i){
   return `<div class="ocard">
@@ -671,7 +671,7 @@ function liveOrderCard(o, i){
 }
 function printLiveSlip(i){ const o=LIVE_ORDERS[i]; if(o) openSlipPrint(o); }
 async function loadLiveOrders(){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'';
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123';
   const st=$('#liveOrdersStatus');
   if(!url||!key){ st.innerHTML='⚠️ Pehle ⚙️ Settings mein bot URL + Admin Key set karein'; st.style.color='var(--red)'; return; }
   st.innerHTML='⏳ Fetching…'; st.style.color='var(--sub)';
