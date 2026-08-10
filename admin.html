@@ -191,6 +191,7 @@ tbody tr:hover{background:#f8fbF9}
     <nav class="sb-nav">
       <div class="sb-item on" data-p="dash" onclick="goPanel('dash')">📊 Dashboard</div>
       <div class="sb-item" data-p="products" onclick="goPanel('products')">📦 Products</div>
+      <div class="sb-item" data-p="stock" onclick="goPanel('stock')">📉 Stock <span class="n" id="navStockCount" style="display:none"></span></div>
       <div class="sb-item" data-p="orders" onclick="goPanel('orders')">🧾 Orders <span class="n" id="navOcount" style="display:none"></span></div>
       <div class="sb-item" data-p="settings" onclick="goPanel('settings')">⚙️ Settings</div>
       <div class="sb-item" data-p="publish" onclick="goPanel('publish')">🚀 Publish</div>
@@ -209,6 +210,11 @@ tbody tr:hover{background:#f8fbF9}
         <div class="sp"><a class="btn" href="index.html" target="_blank">🛍 View store ↗</a><button class="btn pri" onclick="openForm()">+ Add product</button></div>
       </div>
       <div class="stats" id="statCards"></div>
+      <div class="card" id="liveStatsCard" style="display:none">
+        <h3>🌐 Online Store Stats (WhatsApp bot se — LIVE)</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px" id="liveStats"></div>
+        <div style="font-size:12px;color:var(--sub);margin-top:10px" id="liveStatsMeta"></div>
+      </div>
       <div class="card">
         <h3>🧾 Latest orders</h3>
         <div id="dashOrders"></div>
@@ -236,10 +242,37 @@ tbody tr:hover{background:#f8fbF9}
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Product</th><th>Category</th><th>Deck</th><th>Cost</th><th>Rate</th><th>Markup</th><th>Badges</th><th style="text-align:right">Actions</th></tr></thead>
+          <thead><tr><th>Product</th><th>Category</th><th>Deck</th><th>Cost</th><th>Rate</th><th>Markup</th><th>Stock</th><th>Badges</th><th style="text-align:right">Actions</th></tr></thead>
           <tbody id="pRows"></tbody>
         </table>
       </div>
+    </section>
+
+    <!-- ===== STOCK ===== -->
+    <section class="panel" id="p-stock">
+      <div class="topbar"><h1>📉 Stock & Low-stock report</h1>
+        <div class="sp">
+          <button class="btn" onclick="loadLowStock()">🔄 Refresh</button>
+          <button class="btn pri" onclick="exportStockPDF()">📄 PDF report</button>
+        </div>
+      </div>
+      <div class="ok" style="margin-bottom:14px">Jo products <b>khatam hone wale hain</b> (qty &le; threshold) yahan dikhte hain. Qty admin se product form mein set hoti hai, aur har order par khud kam hoti hai. <b>📄 PDF report</b> se supplier order/restock list nikal sakte ho.</div>
+      <div class="tools">
+        <input type="search" id="stockSearch" placeholder="🔍 Search low-stock products…" oninput="renderStockTable()">
+        <select id="stockThreshold" onchange="loadLowStock()">
+          <option value="5">&le; 5 pieces</option>
+          <option value="10" selected>&le; 10 pieces</option>
+          <option value="20">&le; 20 pieces</option>
+          <option value="50">&le; 50 pieces</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Rate</th><th>Qty left</th><th>Sold</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
+          <tbody id="stockRows"></tbody>
+        </table>
+      </div>
+      <div id="stockStatus" style="font-size:12.5px;color:var(--sub);margin-top:10px"></div>
     </section>
 
     <!-- ===== ORDERS ===== -->
@@ -359,6 +392,11 @@ tbody tr:hover{background:#f8fbF9}
       <div class="f-row"><label>Deck (homepage section)</label><select id="fDeck"></select></div>
     </div>
 
+    <div class="fgrid2" style="margin-top:14px">
+      <div class="f-row"><label>📦 Quantity / Stock <small>— kitne pieces hain (0 = out of stock)</small></label>
+        <input id="fQty" type="number" min="0" placeholder="e.g. 25"></div>
+    </div>
+
     <div class="f-row full"><label>Badges</label>
       <div class="badge-opts">
         <label class="bopt"><input type="checkbox" id="bTop"> ⭐ Top pick</label>
@@ -466,14 +504,43 @@ function goPanel(p){
   if(p==='products') renderTable();
   if(p==='orders') renderOrders();
   if(p==='dash') renderDash();
+  if(p==='stock') loadLowStock();
   if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); $('#setAdminKey').value = localStorage.getItem('mz_admin_key') || ''; checkBot(); loadAIStatus(); }
 }
 function refreshCounts(){
   const os=getOrders().filter(o=>o.status==='new').length;
   const n1=$('#navOcount'); if(n1){ n1.style.display=os?'inline-block':'none'; n1.textContent=os; }
 }
-function init(){ fillSelects(); renderDash(); renderTable(); refreshCounts(); $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); }
+function init(){ fillSelects(); renderDash(); renderTable(); refreshCounts(); loadLowStock(); $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); }
 document.addEventListener('DOMContentLoaded',()=>{ if(sessionStorage.getItem('mz_admin')==='1') init(); });
+
+/* ================= LIVE STORE STATS (bot se: total orders + paisa + profit) ================= */
+let LIVE_STATS = null;
+async function loadLiveStats(){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123', card=$('#liveStatsCard');
+  if(!card) return;
+  if(!url){ card.style.display='none'; return; }
+  try{
+    const r=await fetch(url+'/api/orders?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(8000)});
+    const j=await r.json();
+    if(!j.ok) throw 0;
+    LIVE_STATS=j.stats||{};
+    const s=LIVE_STATS;
+    let profit=0;
+    s.sold=s.sold||{};
+    PRODUCTS.forEach(p=>{
+      const soldN=s.sold[p.id];
+      if(soldN && costs[p.id]) profit += soldN*Math.max(0,p.price-costs[p.id]);
+    });
+    $('#liveStats').innerHTML=`
+      <div class="stat" style="margin:0"><div class="si">🧾</div><b>${s.orders||0}</b><small>Total orders</small></div>
+      <div class="stat" style="margin:0"><div class="si">💰</div><b>${fmt(s.revenue||0)}</b><small>Total sale value</small></div>
+      <div class="stat" style="margin:0"><div class="si">📦</div><b>${s.soldItems||0}</b><small>Items sold</small></div>
+      <div class="stat" style="margin:0"><div class="si">💹</div><b>${fmt(profit)}</b><small>Profit (cost se)</small></div>`;
+    $('#liveStatsMeta').innerHTML = `✅ Bot se live data &nbsp;·&nbsp; 🆕 ${s.byStatus.new} new &nbsp;·&nbsp; ✅ ${s.byStatus.delivered} delivered &nbsp;·&nbsp; ❌ ${s.byStatus.cancelled} cancelled`;
+    card.style.display='block';
+  }catch(e){ card.style.display='none'; }
+}
 
 /* ================= DASHBOARD ================= */
 function renderDash(){
@@ -481,11 +548,12 @@ function renderDash(){
   const revenue=os.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+o.total,0);
   const invVal=PRODUCTS.reduce((s,p)=>s+p.price,0);
   const cats=new Set(PRODUCTS.map(p=>p.cat)).size;
+  const lowCount=PRODUCTS.filter(p=>typeof p.qty==='number'&&p.qty<=10).length;
   $('#statCards').innerHTML=`
     <div class="stat"><div class="si">📦</div><b>${PRODUCTS.length}</b><small>Total products</small></div>
     <div class="stat"><div class="si">🧾</div><b>${os.length}</b><small>Orders (is device)</small></div>
     <div class="stat"><div class="si">💰</div><b>${fmt(revenue)}</b><small>Orders value</small></div>
-    <div class="stat"><div class="si">🗂️</div><b>${cats}</b><small>Categories active</small></div>`;
+    <div class="stat"><div class="si">📉</div><b style="color:${lowCount?'var(--red)':'inherit'}">${lowCount}</b><small>Low stock (&le;10)</small></div>`;
   $('#dashOrders').innerHTML = os.length
     ? os.slice(0,5).map(o=>`<div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #eef3f0;font-size:13.5px">
         <b>${o.oid}</b><span style="color:var(--sub)">${o.name} · ${o.phone}</span>
@@ -493,6 +561,7 @@ function renderDash(){
         <b style="margin-left:auto;color:var(--green-d)">${fmt(o.total)}</b></div>`).join('') +
       `<div style="margin-top:12px"><button class="btn s" onclick="goPanel('orders')">View all orders →</button></div>`
     : `<div class="empty" style="padding:30px"><div>🧾</div>Abhi koi order nahi — test order place kar ke dekhein</div>`;
+  loadLiveStats();
 }
 
 /* ================= PRODUCTS TABLE ================= */
@@ -515,6 +584,9 @@ function renderTable(){
       <td style="white-space:nowrap">${costs[p.id]?fmt(costs[p.id]):'<span style="color:#b7c6bd">—</span>'}</td>
       <td style="white-space:nowrap"><b>${fmt(p.price)}</b></td>
       <td>${mk===null?'<span style="color:#b7c6bd">—</span>':`<span class="chip ${mk<0?'neg':'mk'}">${mk<0?'▼':'▲'} ${mk.toFixed(1)}%</span>`}</td>
+      <td>${typeof p.qty==='number'
+        ? `<span class="chip ${p.qty<=0?'neg':p.qty<=10?'':'mk'}">${p.qty<=0?'OUT':p.qty+' left'}</span>`
+        : '<span style="color:#b7c6bd">—</span>'}</td>
       <td style="font-size:11px;color:var(--sub)">${p.badges.map(b=>b==='Top pick'?'⭐':b==='Free delivery'?'🚚':b).join(' ')||'—'}</td>
       <td><div class="rowacts" style="justify-content:flex-end">
         <button class="iact" title="Edit" onclick="openForm(${p.id})">✏️</button>
@@ -522,7 +594,7 @@ function renderTable(){
         <button class="iact del" title="Delete" onclick="delProduct(${p.id})">🗑</button>
       </div></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="8"><div class="empty"><div>🔍</div>Kuch nahi mila</div></td></tr>`;
+  }).join('') || `<tr><td colspan="9"><div class="empty"><div>🔍</div>Kuch nahi mila</div></td></tr>`;
 }
 
 /* ================= PRODUCT FORM ================= */
@@ -535,6 +607,7 @@ function openForm(id){
   $('#fCost').value = (p&&costs[p.id])?costs[p.id]:'';
   $('#fCat').value = p?p.cat:'women';
   $('#fDeck').value = p?p.deck:'today';
+  $('#fQty').value = p&&typeof p.qty==='number'?p.qty:'';
   $('#bTop').checked = p?p.badges.includes('Top pick'):false;
   $('#bFree').checked = p?p.badges.includes('Free delivery'):false;
   const dm = p?p.badges.find(b=>/^-\d+%$/.test(b)):null;
@@ -590,14 +663,18 @@ function saveProduct(){
   const img=$('#fImg').value.trim()||PLACEHOLDER;
   const cost=parseFloat($('#fCost').value);
   const idV=$('#fId').value;
+  const qtyVal = $('#fQty').value.trim();
   if(idV){
     const p=PRODUCTS.find(x=>x.id==idV);
     Object.assign(p,{name,price,img,badges,cat:$('#fCat').value,deck:$('#fDeck').value});
+    if(qtyVal!=='') p.qty=Math.max(0,parseInt(qtyVal));
     if(!isNaN(cost)&&cost>0) costs[p.id]=cost; else delete costs[p.id];
     toast('✅ Product update ho gaya');
   } else {
     const nid=Math.max(0,...PRODUCTS.map(p=>p.id))+1;
-    PRODUCTS.unshift({id:nid,deck:$('#fDeck').value,name,price,img,badges,cat:$('#fCat').value});
+    const np={id:nid,deck:$('#fDeck').value,name,price,img,badges,cat:$('#fCat').value};
+    if(qtyVal!=='') np.qty=Math.max(0,parseInt(qtyVal));
+    PRODUCTS.unshift(np);
     if(!isNaN(cost)&&cost>0) costs[nid]=cost;
     toast('✅ Naya product add ho gaya');
   }
@@ -617,6 +694,97 @@ function dupProduct(id){
   saveAll(); renderTable(); toast('⧉ Duplicate ban gaya');
 }
 function deleteFromForm(){ const id=$('#fId').value; if(!id) return; closeForm(); delProduct(+id); }
+
+/* ================= STOCK / LOW-STOCK REPORT ================= */
+let STOCK_LIST = [];
+async function loadLowStock(){
+  const st=$('#stockStatus'); if(!st) return;
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123';
+  const th=$('#stockThreshold').value||10;
+  st.innerHTML='⏳ Fetching…';
+  let fromBot=[], local=[];
+  if(url){
+    try{
+      const r=await fetch(url+'/api/lowstock?key='+encodeURIComponent(key)+'&threshold='+th,{signal:AbortSignal.timeout(8000)});
+      const j=await r.json();
+      if(j.ok) fromBot=j.low;
+    }catch(e){}
+  }
+  local = PRODUCTS.filter(p=>typeof p.qty==='number'&&p.qty<=th).map(p=>({id:p.id,name:p.name,price:p.price,qty:p.qty,sold:0}));
+  /* bot se qty/sold merge karo jab local qty na ho */
+  if(fromBot.length){
+    const byId={}; fromBot.forEach(x=>byId[x.id]=x);
+    local = local.map(p=>byId[p.id]?{...p,qty:byId[p.id].qty,sold:byId[p.id].sold||0}:p);
+    fromBot.forEach(x=>{ if(!local.find(l=>l.id===x.id)) local.push(x); });
+  }
+  STOCK_LIST = local.sort((a,b)=>a.qty-b.qty);
+  st.innerHTML = fromBot.length
+    ? `✅ Bot se live stock + is device ke products. ${STOCK_LIST.length} low-stock mile`
+    : `${STOCK_LIST.length} low-stock products (is device se)`;
+  renderStockTable(); refreshStockBadge();
+}
+function renderStockTable(){
+  const q=($('#stockSearch').value||'').toLowerCase();
+  const list=STOCK_LIST.filter(p=>!q||p.name.toLowerCase().includes(q));
+  $('#stockRows').innerHTML=list.map(p=>`
+    <tr>
+      <td><div class="pcell"><span class="pn">${p.name}</span></div></td>
+      <td style="white-space:nowrap"><b>${fmt(p.price)}</b></td>
+      <td><b style="color:${p.qty<=0?'var(--red)':p.qty<=10?'#8a6100':'var(--green-d)'}">${p.qty<=0?'OUT':p.qty}</b></td>
+      <td style="color:var(--sub)">${p.sold||0}</td>
+      <td>${p.qty<=0?'<span class="chip neg">Out of stock</span>':p.qty<=10?'<span class="chip" style="background:#fff3d6;color:#8a6100">Low</span>':'<span class="chip" style="background:var(--mint);color:var(--green-d)">Ok</span>'}</td>
+      <td style="text-align:right"><button class="btn s" onclick="openForm(${p.id})">✏️ Edit stock</button></td>
+    </tr>`).join('') || `<tr><td colspan="6"><div class="empty"><div>✅</div>Koi low-stock product nahi</div></td></tr>`;
+}
+function refreshStockBadge(){
+  const n=STOCK_LIST.length, el=$('#navStockCount');
+  if(el){ el.style.display=n?'inline-block':'none'; el.textContent=n; }
+}
+function exportStockPDF(){
+  if(!STOCK_LIST.length){ toast('⚠️ Pehle Refresh dabao ya koi low-stock nahi'); return; }
+  const rows=STOCK_LIST.map((p,i)=>`<tr>
+    <td class="c">${i+1}</td><td>${p.name}</td><td class="c">${p.qty<=0?'OUT':p.qty}</td><td class="c">${p.sold||0}</td><td class="r b">${fmt(p.price)}</td>
+  </tr>`).join('');
+  const total=STOCK_LIST.length, outCount=STOCK_LIST.filter(p=>p.qty<=0).length;
+  const w=window.open('','_blank','width=840,height=980');
+  if(!w){ alert('Popup block hai — popups allow karein'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>UTStore Stock Report</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#eef2f0;color:#17211c;padding:24px 12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .paper{max-width:760px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(8,68,51,.15)}
+  .head{background:#084433;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:24px 30px;flex-wrap:wrap;gap:12px}
+  .mark{width:44px;height:44px;border-radius:12px;background:#fff;color:#084433;display:grid;place-items:center;font-size:24px;font-weight:800;margin-bottom:6px}
+  .head h1{font-size:22px;letter-spacing:-.5px}.head small{color:#bfdfc9;font-size:12px}
+  .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:18px 30px;background:#0b5d43;color:#fff;font-size:13px}
+  .sum b{display:block;font-size:20px;margin-top:3px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#e7f4ee;color:#084433;font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;padding:11px 12px;text-align:left;border-bottom:2px solid #0b5d43}
+  tbody td{padding:10px 12px;font-size:12.8px;border-bottom:1px solid #eef3f0}
+  tbody tr:nth-child(even){background:#fbfdfc}.c{text-align:center}.r{text-align:right}.b{font-weight:700}
+  .low{color:#8a6100;font-weight:700}.out{color:var(--red,#e5484d);font-weight:800}
+  .foot{margin-top:20px;background:#084433;color:#bfdfc9;text-align:center;padding:15px;font-size:12px}
+  .acts{text-align:center;margin:18px 0}
+  .btn{background:#0b5d43;color:#fff;border:none;border-radius:99px;padding:12px 34px;font-size:14px;font-weight:700;cursor:pointer;margin:0 5px}
+  .btn.ghost{background:#fff;color:#0b5d43;border:1.5px solid #0b5d43}
+  @media print{body{background:#fff;padding:0}.paper{box-shadow:none;border-radius:0;max-width:none}.acts{display:none}}
+  </style></head><body><div class="paper">
+  <div class="head"><div><div class="mark">U</div><h1>UTStore — Stock Report</h1><small>Low-stock / restock list · ${new Date().toLocaleString('en-PK')}</small></div></div>
+  <div class="sum">
+    <div>Low-stock items<b>${total}</b></div>
+    <div>Out of stock<b>${outCount}</b></div>
+    <div>Est. restock value<b>${fmt(STOCK_LIST.reduce((s,p)=>s+p.price,0))}</b></div>
+  </div>
+  <div style="padding:8px 30px 0"><table>
+    <thead><tr><th class="c" style="width:38px">#</th><th>Product</th><th class="c" style="width:70px">Qty left</th><th class="c" style="width:70px">Sold</th><th class="r" style="width:110px">Rate</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  <div class="foot">UTStore · Made by Umair ❤️</div>
+  </div>
+  <div class="acts"><button class="btn" onclick="window.print()">🖨️ Print / Save PDF</button><button class="btn ghost" onclick="window.close()">✕ Close</button></div>
+  </body></html>`);
+  w.document.close(); w.focus();
+  toast('📄 Stock report khul gaya — Print / Save PDF dabao');
+}
 
 /* ================= ORDERS ================= */
 function renderOrders(){

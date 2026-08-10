@@ -58,6 +58,45 @@ let PRODUCTS = loadProducts();
 console.log(`📦 ${PRODUCTS.length} products loaded`);
 setInterval(() => { PRODUCTS = loadProducts(); }, 5 * 60 * 1000);
 
+/* ================= STOCK TRACKING (volume par save — redeploy pe nahi jata) ================= */
+const STOCK_FILE = path.join(process.env.STOCK_PATH || path.join(__dirname, '.wwebjs_auth'), 'stock.json');
+const STOCK = {};   // id -> qty (remaining)
+const SOLD = {};    // id -> total sold count
+function loadStock() {
+  try {
+    const d = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8'));
+    Object.assign(STOCK, d.stock || {});
+    Object.assign(SOLD, d.sold || {});
+    console.log(`📦 Stock loaded (${Object.keys(STOCK).length} items)`);
+  } catch (e) { console.log('📦 Naya stock state — fresh shuru'); }
+}
+function saveStock() {
+  try {
+    fs.mkdirSync(path.dirname(STOCK_FILE), { recursive: true });
+    fs.writeFileSync(STOCK_FILE, JSON.stringify({ stock: STOCK, sold: SOLD }));
+  } catch (e) { console.log('stock save error:', e.message); }
+}
+function applyStockFromProducts(products) {
+  for (const p of products) {
+    if (typeof p.qty === 'number' && p.qty >= 0) STOCK[p.id] = p.qty;
+  }
+  saveStock();
+}
+function stockOf(p) { return (STOCK[p.id] !== undefined) ? STOCK[p.id] : (typeof p.qty === 'number' ? p.qty : -1); }
+function soldOf(id) { return SOLD[id] || 0; }
+function consumeStock(items) {
+  let changed = false;
+  for (const it of (items || [])) {
+    if (STOCK[it.id] !== undefined && STOCK[it.id] > 0) {
+      STOCK[it.id] = Math.max(0, STOCK[it.id] - (it.qty || 1));
+      SOLD[it.id] = (SOLD[it.id] || 0) + (it.qty || 1);
+      changed = true;
+    }
+  }
+  if (changed) saveStock();
+}
+loadStock();
+
 /* Mobile accessories pehle dikhao, phir baaki sab */
 const MOBILE_TERMS = ['mobile', 'phone', 'earbud', 'headphone', 'bluetooth', 'charger', 'camera',
   'sim card', 'keychain', 'pod', 'buds', 'cable', 'tablet', 'power bank', 'laptop bag',
@@ -469,6 +508,7 @@ app.post('/order', async (req, res) => {
     const o = req.body || {};
     if (!o.oid || !o.name) return res.status(400).json({ ok: false, error: 'invalid order' });
     await saveOrder(o);
+    consumeStock(o.items);
 
     /* 2) Odoo mein Sale Order (agar configured hai) */
     let odooSO = null;
@@ -531,21 +571,51 @@ app.get('/orders', async (req, res) => {
   <table><thead><tr><th>Order</th><th>Items</th><th>Customer</th><th>Total</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="text-align:center;padding:40px;color:#5b6b62">Abhi koi order nahi</td></tr>'}</tbody></table></body></html>`);
 });
 
-/* Admin Panel ke liye JSON API — live orders + status update */
+/* Admin Panel ke liye JSON API — live orders + status update + sales stats */
 app.get('/api/orders', async (req, res) => {
   if (req.query.key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized — sahi ADMIN_KEY use karein' });
-  const list = await listOrders(Number(req.query.limit) || 200);
-  res.json({ ok: true, orders: list, mongo: !!OrderModel });
+  const list = await listOrders(Number(req.query.limit) || 500);
+  const active = list.filter(o => o.status !== 'cancelled');
+  const revenue = active.reduce((s, o) => s + (o.total || 0), 0);
+  const subTotal = active.reduce((s, o) => s + (o.sub || 0), 0);
+  let soldItems = 0;
+  const byId = {};
+  active.forEach(o => (o.items || []).forEach(it => {
+    soldItems += it.qty || 1;
+    byId[it.id] = (byId[it.id] || 0) + (it.qty || 1);
+  }));
+  res.json({
+    ok: true, orders: list, mongo: !!OrderModel,
+    stats: {
+      orders: active.length, revenue, subTotal, soldItems,
+      byStatus: { new: active.filter(o => o.status === 'new').length, confirmed: active.filter(o => o.status === 'confirmed').length, delivered: active.filter(o => o.status === 'delivered').length, cancelled: list.filter(o => o.status === 'cancelled').length },
+      sold: byId
+    }
+  });
+});
+
+/* Low-stock list (admin ke liye) — jinke qty threshold se kam hai */
+app.get('/api/lowstock', (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const threshold = Number(req.query.threshold) || 10;
+  const low = PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price, qty: stockOf(p), sold: soldOf(p.id) }))
+    .filter(p => p.qty >= 0 && p.qty <= threshold)
+    .sort((a, b) => a.qty - b.qty);
+  res.json({ ok: true, threshold, low, total: PRODUCTS.length });
 });
 
 /* Admin Panel se products LIVE publish (rates/images update hote hi website pe) */
-app.get('/api/products', (req, res) => res.json({ ok: true, products: PRODUCTS }));
+app.get('/api/products', (req, res) => {
+  const products = PRODUCTS.map(p => ({ ...p, qty: stockOf(p) >= 0 ? stockOf(p) : p.qty, sold: soldOf(p.id) }));
+  res.json({ ok: true, products });
+});
 app.post('/api/products', (req, res) => {
   const key = (req.body || {}).key || req.query.key;
   if (key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   const arr = (req.body || {}).products;
   if (!Array.isArray(arr)) return res.status(400).json({ ok: false, error: 'products array chahiye' });
   PRODUCTS = arr;
+  applyStockFromProducts(arr);
   console.log('📦 Admin se ' + arr.length + ' products LIVE update ho gaye');
   res.json({ ok: true, count: arr.length });
 });

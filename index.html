@@ -299,6 +299,9 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
   .pcard{flex-basis:172px}
   .earn{padding:24px}
   .fgrid{grid-template-columns:1fr;gap:20px}
+  .deck-nav{display:none}
+  .sec-head{flex-wrap:wrap}
+  .co-box{padding:18px}
 }
 </style>
 </head>
@@ -643,7 +646,12 @@ function renderPills(){
 /* ================= RENDER: CARDS ================= */
 function cardHTML(p){
   const r=ratingOf(p), o=origPrice(p), inCart=!!cart[p.id];
+  const qty=typeof p.qty==='number'?p.qty:null;
+  const out=qty!==null&&qty<=0;
+  const low=qty!==null&&qty>0&&qty<=10;
   const tags=[];
+  if(out) tags.push(`<span class="tag left">Out of stock</span>`);
+  else if(low) tags.push(`<span class="tag left">Only ${qty} left</span>`);
   p.badges.forEach(b=>{
     if(/^-\d+%$/.test(b)) tags.push(`<span class="tag off">${b}</span>`);
     else if(b==='Top pick') tags.push(`<span class="tag top">⭐ Top pick</span>`);
@@ -661,7 +669,9 @@ function cardHTML(p){
       <div class="pname" onclick="quickView(${p.id})">${p.name}</div>
       <div class="prate">${r?`<span class="stars">★</span> ${r.toFixed(1)} <span style="color:#c0d2c8">|</span>`:''} <span style="color:var(--green);font-weight:600">COD</span></div>
       <div class="pprice"><b>${fmt(p.price)}</b>${o?`<s>${fmt(o)}</s>`:''}</div>
-      <button class="padd ${inCart?'incart':''}" onclick="addToCart(${p.id})">${inCart?'✓ In cart — add one more':'🛒 Add to cart'}</button>
+      ${out
+        ? `<button class="padd" style="background:#e9efe9;color:#9aa99f;cursor:not-allowed">Out of stock</button>`
+        : `<button class="padd ${inCart?'incart':''}" onclick="addToCart(${p.id})">${inCart?'✓ In cart — add one more':'🛒 Add to cart'}</button>`}
     </div>
   </div>`;
 }
@@ -746,8 +756,9 @@ function toggleWish(id){
 function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
 function cartSubtotal(){ return Object.entries(cart).reduce((s,[id,q])=>{const p=PRODUCTS.find(x=>x.id==id); return s+(p?p.price*q:0)},0); }
 function addToCart(id,qty=1){
-  cart[id]=(cart[id]||0)+qty; save(); syncBadges();
   const p=PRODUCTS.find(x=>x.id===id);
+  if(p&&typeof p.qty==='number'&&p.qty<=0){ toast('⚠️ Yeh product out of stock hai'); return; }
+  cart[id]=(cart[id]||0)+qty; save(); syncBadges();
   toast(`🛒 Added: ${p.name.slice(0,38)}${p.name.length>38?'…':''}`);
   document.querySelectorAll(`.pcard[data-id="${id}"] .padd`).forEach(b=>{b.classList.add('incart'); b.textContent='✓ In cart — add one more';});
   if($('#cartDrawer').classList.contains('on')) renderCart();
@@ -810,16 +821,19 @@ function quickView(id){
     return `<span class="tag ${cls}">${b}</span>`;
   }).join('');
   const deckName=(DECKS.find(d=>d[0]===p.deck)||['',''])[1];
+  const qty=typeof p.qty==='number'?p.qty:null;
+  const out=qty!==null&&qty<=0;
+  const low=qty!==null&&qty>0&&qty<=10;
   $('#qvBody').innerHTML=`<div class="qv">
     <div class="qimg"><img src="${p.img}" alt="" onerror="imgFallback(this)"></div>
     <div class="qinfo">
       <div class="qmeta">${tags}</div>
       <h2>${p.name}</h2>
-      <div class="prate" style="font-size:13px">${r?`<span class="stars">★★★★★</span> <b>${r.toFixed(1)}</b> ·`:''} <span style="color:var(--green);font-weight:700">In stock</span> · ${CATNAMES[p.cat]||''} · ${deckName}</div>
+      <div class="prate" style="font-size:13px">${r?`<span class="stars">★★★★★</span> <b>${r.toFixed(1)}</b> ·`:''} <span style="color:${out?'var(--red)':'var(--green)'};font-weight:700">${out?'Out of stock':low?`Only ${qty} left`:'In stock'}</span> · ${CATNAMES[p.cat]||''} · ${deckName}</div>
       <div style="margin:14px 0 4px"><span class="qprice">${fmt(p.price)}${o?`<s>${fmt(o)}</s>`:''}</span></div>
       <div class="qdesc">Quality-checked product from a trusted seller. Pay cash when it arrives at your doorstep — delivery in 3–5 working days across Pakistan, with a 7-day easy return window on every order.</div>
       <div class="qacts">
-        <button class="padd" onclick="addToCart(${p.id})">🛒 Add to cart</button>
+        ${out?`<button class="padd" style="background:#e9efe9;color:#9aa99f;cursor:not-allowed">Out of stock</button>`:`<button class="padd" onclick="addToCart(${p.id})">🛒 Add to cart</button>`}
         <button class="wish2 ${wished?'on':''}" data-id="${p.id}" onclick="toggleWish(${p.id})">${wished?'♥':'♡'}</button>
       </div>
       <div class="qship"><span>💵 COD available</span><span>🚚 3–5 day delivery</span><span>↩️ 7-day returns</span></div>
