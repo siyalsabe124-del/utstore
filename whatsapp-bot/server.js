@@ -37,9 +37,9 @@ const EMAIL_TO   = process.env.EMAIL_TO   || EMAIL_USER;
     1) GEMINI_API_KEY    → Google Gemini (free tier, ai.google.dev)
     2) OPENROUTER_API_KEY → OpenRouter (ek key, saare models: ChatGPT/Claude/Llama/DeepSeek… free models bhi)
    dono mein se jo key ho wo use hogi. Key na ho to simple greeting + rate search chalta hai. */
-const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324:free'; // free model default
+let GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+let OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
+let OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324:free'; // free model default
 
 const fmt = n => 'PKR ' + Number(n || 0).toLocaleString('en-PK');
 
@@ -383,6 +383,22 @@ function page(icon, color, title, sub, refresh) {
 }
 
 app.get('/health', (req, res) => res.json({ ok: true, connected, mongo: !!OrderModel, odoo: !!(ODOO && ODOO.configured()), email: !!EMAIL_PASS, ai: !!(GEMINI_KEY || OPENROUTER_KEY), aiProvider: GEMINI_KEY ? 'gemini' : (OPENROUTER_KEY ? 'openrouter' : 'none'), owner: OWNER, products: PRODUCTS.length }));
+
+/* Admin se AI keys set karein (bina redeploy) — GEMINI_API_KEY / OPENROUTER_API_KEY / OPENROUTER_MODEL */
+app.get('/api/config', (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  res.json({ ok: true, aiProvider: GEMINI_KEY ? 'gemini' : (OPENROUTER_KEY ? 'openrouter' : 'none'), gemini: !!GEMINI_KEY, openrouter: !!OPENROUTER_KEY, model: OPENROUTER_MODEL });
+});
+app.post('/api/config', (req, res) => {
+  const key = (req.body || {}).key || req.query.key;
+  if (key !== ADMIN_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const b = req.body || {};
+  if (typeof b.geminiKey === 'string') GEMINI_KEY = b.geminiKey.trim();
+  if (typeof b.openrouterKey === 'string') OPENROUTER_KEY = b.openrouterKey.trim();
+  if (typeof b.model === 'string' && b.model.trim()) OPENROUTER_MODEL = b.model.trim();
+  console.log('🤖 AI config update — gemini:', !!GEMINI_KEY, '· openrouter:', !!OPENROUTER_KEY, '· model:', OPENROUTER_MODEL);
+  res.json({ ok: true });
+});
 
 /* ================= EMAIL OTP SIGNUP/LOGIN (customer apni Gmail se PIN le kar login) ================= */
 const crypto = require('crypto');

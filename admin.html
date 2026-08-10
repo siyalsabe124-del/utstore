@@ -282,13 +282,25 @@ tbody tr:hover{background:#f8fbF9}
       </div>
       <div class="card">
         <h3>🤖 WhatsApp Bot server (auto orders + auto rate reply)</h3>
-        <div class="ok" style="margin-bottom:14px">Bot server chal raha ho to uska URL yahan likhein — phir orders <b>khud-ba-khud</b> aapke WhatsApp pe aayenge (customer ko send dabana nahi parega) aur bot logon ke rate sawalon ka khud jawab dega.<br><small>Setup ke liye <b>whatsapp-bot</b> folder ka README dekhein — khali chhoodein to purana wa.me tareeqa chalta rahega.</small></div>
+        <div class="ok" style="margin-bottom:14px">Bot server chal raha ho to uska URL yahan likhein — phir orders <b>khud-ba-khud</b> aapke WhatsApp pe aayenge aur bot logon ke sawalon ka khud jawab dega (AI + store rates).<br><small>Bot URL nahi hai to QR login ke baad bhi website wa.me se order bhejti hai — koi order miss nahi hoga.</small></div>
         <div class="f-row"><label>Bot URL <small>— e.g. https://aapka-bot.onrender.com</small></label>
           <input id="setBot" placeholder="https://…"></div>
         <div class="f-row"><label>Admin Key <small>— bot ka ADMIN_KEY (orders fetch karne ke liye)</small></label>
           <input id="setAdminKey" placeholder="admin123"></div>
         <button class="btn pri" onclick="saveBot()">💾 Save bot URL + key</button>
         <div style="font-size:12px;color:var(--sub);margin-top:9px">Status: <b id="botStatus">—</b></div>
+      </div>
+      <div class="card">
+        <h3>🤖 AI Auto-Reply (OpenRouter / Gemini)</h3>
+        <div class="ok" style="margin-bottom:14px">Koi bhi language samjho + human jaisa jawab (Urdu/English/roman Urdu). Key <b>bot pe set</b> hoti hai — yahan se daalo, redeploy ki zaroorat nahi. Free keys: <a href="https://openrouter.ai" target="_blank" style="color:var(--green);font-weight:700">openrouter.ai</a> ya <a href="https://aistudio.google.com" target="_blank" style="color:var(--green);font-weight:700">aistudio.google.com</a></div>
+        <div class="f-row"><label>OpenRouter API Key <small>— sk-or-... (free models: DeepSeek, Llama, ChatGPT)</small></label>
+          <input id="setORKey" placeholder="sk-or-..."></div>
+        <div class="f-row"><label>OpenRouter Model <small>— free model default: deepseek-chat</small></label>
+          <input id="setORModel" placeholder="deepseek/deepseek-chat-v3-0324:free"></div>
+        <div class="f-row"><label>Gemini API Key <small>— AIza... (Google free tier)</small></label>
+          <input id="setGemKey" placeholder="AIza..."></div>
+        <button class="btn pri" onclick="saveAIKeys()">💾 Save AI keys</button>
+        <div style="font-size:12px;color:var(--sub);margin-top:9px">Status: <b id="aiStatus">—</b></div>
       </div>
       <div class="card">
         <h3>⚠️ Danger zone</h3>
@@ -454,7 +466,7 @@ function goPanel(p){
   if(p==='products') renderTable();
   if(p==='orders') renderOrders();
   if(p==='dash') renderDash();
-  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); $('#setAdminKey').value = localStorage.getItem('mz_admin_key') || ''; checkBot(); }
+  if(p==='settings'){ $('#setWa').value = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:''); $('#setBot').value = localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:''); $('#setAdminKey').value = localStorage.getItem('mz_admin_key') || ''; checkBot(); loadAIStatus(); }
 }
 function refreshCounts(){
   const os=getOrders().filter(o=>o.status==='new').length;
@@ -729,6 +741,37 @@ async function checkBot(){
     el.textContent = j.connected ? '🟢 Connected — WhatsApp login live hai' : '🟡 Bot chal raha hai — QR scan karein ('+v+'/qr)';
     el.style.color = j.connected ? 'var(--green)' : '#8a6100';
   }catch(e){ el.textContent='🔴 Bot se rabta nahi ho paya — URL check karein ya bot start karein'; el.style.color='var(--red)'; }
+}
+async function loadAIStatus(){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'', el=$('#aiStatus');
+  if(!el) return;
+  if(!url||!key){ el.textContent='Bot set nahi — key daalne ke liye pehle bot URL + admin key set karein'; el.style.color='var(--sub)'; return; }
+  try{
+    const r=await fetch(url+'/api/config?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(6000)});
+    const j=await r.json();
+    if(!j.ok) throw 0;
+    $('#setGemKey').value = j.gemini ? '(set ✓ — nayi daalne ke liye type karein)' : '';
+    $('#setORKey').value = j.openrouter ? '(set ✓ — nayi daalne ke liye type karein)' : '';
+    $('#setORModel').value = j.model || '';
+    el.textContent = j.gemini ? '🟢 Gemini AI active' : (j.openrouter ? '🟢 OpenRouter AI active ('+j.model+')' : '🟡 AI key set nahi — simple replies chal rahe hain');
+    el.style.color = (j.gemini||j.openrouter) ? 'var(--green)' : '#8a6100';
+  }catch(e){ el.textContent='🔴 Bot se rabta nahi'; el.style.color='var(--red)'; }
+}
+async function saveAIKeys(){
+  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'', el=$('#aiStatus');
+  if(!url||!key){ toast('⚠️ Pehle bot URL + admin key set karein'); return; }
+  let gem = $('#setGemKey').value.trim(), or = $('#setORKey').value.trim(), mdl = $('#setORModel').value.trim();
+  if(gem.startsWith('(set')) gem='';
+  if(or.startsWith('(set')) or='';
+  if(gem && !/^AIza/.test(gem)){ toast('⚠️ Gemini key AIza... se shuru hoti hai'); return; }
+  if(or && !/^sk-or-/.test(or)){ toast('⚠️ OpenRouter key sk-or-... se shuru hoti hai'); return; }
+  el.textContent='⏳ Saving…'; el.style.color='var(--sub)';
+  try{
+    const r=await fetch(url+'/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,geminiKey:gem,openrouterKey:or,model:mdl})});
+    const j=await r.json();
+    if(j.ok){ toast('✅ AI keys bot pe save ho gaye'); loadAIStatus(); }
+    else toast('⚠️ Save fail');
+  }catch(e){ toast('🔴 Bot se rabta nahi'); }
 }
 function resetProducts(){
   if(!confirm('Saare product changes khatam ho kar original 147 products wapas aa jayenge. Pakka?')) return;
