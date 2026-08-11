@@ -722,7 +722,7 @@ function renderGrid(){
   $('#loadMore').style.display=list.length>state.shown?'block':'none';
   $('#resultCount').textContent=`${list.length} product${list.length!==1?'s':''} found`;
   const deckName=state.deck?(DECKS.find(d=>d[0]===state.deck)||[])[1]:null;
-  $('#shopTitle').textContent = deckName || (state.cat==='all'?'All Products':(CATNAMES[state.cat]||'Products'));
+  $('#shopTitle').textContent = state.q ? ('Results for "'+state.q+'"') : (deckName || (state.cat==='all'?'All Products':(CATNAMES[state.cat]||'Products')));
 }
 function loadMore(){ state.shown+=PAGE; renderGrid(); }
 function filterCat(c,scroll){
