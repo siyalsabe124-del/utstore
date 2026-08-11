@@ -448,6 +448,8 @@ const CATNAMES = {women:"Women",men:"Men",kids:"Kids & Toys",beauty:"Beauty",hom
 
 /* ================= STATE ================= */
 let PRODUCTS = (typeof DEFAULT_PRODUCTS!=='undefined') ? JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)) : [];
+const MZ_PV = 'v3';
+try{ if(localStorage.getItem('mz_products_ver')!==MZ_PV){ localStorage.removeItem('mz_products_live'); localStorage.removeItem('mz_costs'); localStorage.setItem('mz_products_ver',MZ_PV); } }catch(e){}
 try{ const o=localStorage.getItem('mz_products_live'); if(o) PRODUCTS=JSON.parse(o); }catch(e){}
 let costs = {}; try{ costs = JSON.parse(localStorage.getItem('mz_costs')||'{}'); }catch(e){}
 const $ = s=>document.querySelector(s);
@@ -517,12 +519,10 @@ document.addEventListener('DOMContentLoaded',()=>{ if(sessionStorage.getItem('mz
 /* ================= LIVE STORE STATS (bot se: total orders + paisa + profit) ================= */
 let LIVE_STATS = null;
 async function loadLiveStats(){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123', card=$('#liveStatsCard');
+  const key=localStorage.getItem('mz_admin_key')||'admin123', card=$('#liveStatsCard');
   if(!card) return;
-  if(!url){ card.style.display='none'; return; }
   try{
-    const r=await fetch(url+'/api/orders?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(8000)});
-    const j=await r.json();
+    const j=await botFetch('api/orders?key='+encodeURIComponent(key));
     if(!j.ok) throw 0;
     LIVE_STATS=j.stats||{};
     const s=LIVE_STATS;
@@ -699,17 +699,14 @@ function deleteFromForm(){ const id=$('#fId').value; if(!id) return; closeForm()
 let STOCK_LIST = [];
 async function loadLowStock(){
   const st=$('#stockStatus'); if(!st) return;
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123';
+  const key=localStorage.getItem('mz_admin_key')||'admin123';
   const th=$('#stockThreshold').value||10;
   st.innerHTML='⏳ Fetching…';
   let fromBot=[], local=[];
-  if(url){
-    try{
-      const r=await fetch(url+'/api/lowstock?key='+encodeURIComponent(key)+'&threshold='+th,{signal:AbortSignal.timeout(8000)});
-      const j=await r.json();
-      if(j.ok) fromBot=j.low;
-    }catch(e){}
-  }
+  try{
+    const j=await botFetch('api/lowstock?key='+encodeURIComponent(key)+'&threshold='+th);
+    if(j.ok) fromBot=j.low;
+  }catch(e){};
   local = PRODUCTS.filter(p=>typeof p.qty==='number'&&p.qty<=th).map(p=>({id:p.id,name:p.name,price:p.price,qty:p.qty,sold:0}));
   /* bot se qty/sold merge karo jab local qty na ho */
   if(fromBot.length){
@@ -817,6 +814,18 @@ function clearOrders(){ if(!confirm('Saare orders delete ho jayenge. Pakka?')) r
 
 /* ================= LIVE ORDERS (WhatsApp bot se JSON fetch) ================= */
 function botBaseURL(){ return (localStorage.getItem('mz_bot_url') || (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'')).replace(/\/+$/,''); }
+function botCandidates(){ return [...new Set([botBaseURL(), (typeof DEFAULT_BOT_URL!=='undefined'?DEFAULT_BOT_URL:'').replace(/\/+$/,'')].filter(Boolean))]; }
+async function botFetch(path, opts={}){
+  let lastErr=null;
+  for(const base of botCandidates()){
+    try{
+      const r=await fetch(base+'/'+path,{...opts,signal:AbortSignal.timeout(8000)});
+      if(!r.ok){ lastErr=new Error('HTTP '+r.status); continue; }
+      return await r.json();
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error('bot unreachable');
+}
 let LIVE_ORDERS = [];
 function liveOrderCard(o, i){
   return `<div class="ocard">
@@ -839,14 +848,12 @@ function liveOrderCard(o, i){
 }
 function printLiveSlip(i){ const o=LIVE_ORDERS[i]; if(o) openSlipPrint(o); }
 async function loadLiveOrders(){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'admin123';
+  const key=localStorage.getItem('mz_admin_key')||'admin123';
   const st=$('#liveOrdersStatus');
-  if(!url||!key){ st.innerHTML='⚠️ Pehle ⚙️ Settings mein bot URL + Admin Key set karein'; st.style.color='var(--red)'; return; }
+  if(!key){ st.innerHTML='⚠️ Pehle ⚙️ Settings mein Admin Key set karein'; st.style.color='var(--red)'; return; }
   st.innerHTML='⏳ Fetching…'; st.style.color='var(--sub)';
   try{
-    const r=await fetch(url+'/api/orders?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(8000)});
-    if(!r.ok) throw 0;
-    const j=await r.json();
+    const j=await botFetch('api/orders?key='+encodeURIComponent(key));
     if(!j.ok) throw 0;
     LIVE_ORDERS=j.orders||[];
     $('#liveOrdersList').innerHTML = LIVE_ORDERS.length
@@ -857,11 +864,10 @@ async function loadLiveOrders(){
   }catch(e){ st.innerHTML='🔴 Fetch fail — URL/key check karein'; st.style.color='var(--red)'; $('#liveOrdersList').innerHTML=''; }
 }
 async function setLiveStatus(oid,status){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'';
-  if(!url||!key){ toast('⚠️ Bot URL + key set karein'); return; }
+  const key=localStorage.getItem('mz_admin_key')||'admin123';
+  if(!key){ toast('⚠️ Admin key set karein'); return; }
   try{
-    const r=await fetch(url+'/api/order/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,oid,status})});
-    const j=await r.json();
+    const j=await botFetch('api/order/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,oid,status})});
     if(j.ok){ toast('✅ Status: '+status); loadLiveOrders(); }
     else toast('⚠️ Update fail');
   }catch(e){ toast('🔴 Bot se rabta nahi'); }
@@ -911,12 +917,10 @@ async function checkBot(){
   }catch(e){ el.textContent='🔴 Bot se rabta nahi ho paya — URL check karein ya bot start karein'; el.style.color='var(--red)'; }
 }
 async function loadAIStatus(){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'', el=$('#aiStatus');
+  const key=localStorage.getItem('mz_admin_key')||'admin123', el=$('#aiStatus');
   if(!el) return;
-  if(!url||!key){ el.textContent='Bot set nahi — key daalne ke liye pehle bot URL + admin key set karein'; el.style.color='var(--sub)'; return; }
   try{
-    const r=await fetch(url+'/api/config?key='+encodeURIComponent(key),{signal:AbortSignal.timeout(6000)});
-    const j=await r.json();
+    const j=await botFetch('api/config?key='+encodeURIComponent(key));
     if(!j.ok) throw 0;
     $('#setGemKey').value = j.gemini ? '(set ✓ — nayi daalne ke liye type karein)' : '';
     $('#setORKey').value = j.openrouter ? '(set ✓ — nayi daalne ke liye type karein)' : '';
@@ -926,8 +930,8 @@ async function loadAIStatus(){
   }catch(e){ el.textContent='🔴 Bot se rabta nahi'; el.style.color='var(--red)'; }
 }
 async function saveAIKeys(){
-  const url=botBaseURL(), key=localStorage.getItem('mz_admin_key')||'', el=$('#aiStatus');
-  if(!url||!key){ toast('⚠️ Pehle bot URL + admin key set karein'); return; }
+  const key=localStorage.getItem('mz_admin_key')||'admin123', el=$('#aiStatus');
+  if(!key){ toast('⚠️ Pehle admin key set karein'); return; }
   let gem = $('#setGemKey').value.trim(), or = $('#setORKey').value.trim(), mdl = $('#setORModel').value.trim();
   if(gem.startsWith('(set')) gem='';
   if(or.startsWith('(set')) or='';
@@ -935,8 +939,7 @@ async function saveAIKeys(){
   if(or && !/^sk-or-/.test(or)){ toast('⚠️ OpenRouter key sk-or-... se shuru hoti hai'); return; }
   el.textContent='⏳ Saving…'; el.style.color='var(--sub)';
   try{
-    const r=await fetch(url+'/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,geminiKey:gem,openrouterKey:or,model:mdl})});
-    const j=await r.json();
+    const j=await botFetch('api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,geminiKey:gem,openrouterKey:or,model:mdl})});
     if(j.ok){ toast('✅ AI keys bot pe save ho gaye'); loadAIStatus(); }
     else toast('⚠️ Save fail');
   }catch(e){ toast('🔴 Bot se rabta nahi'); }

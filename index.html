@@ -514,6 +514,8 @@ footer{margin-top:44px;background:var(--green-dd);color:#c9e4d5}
 /* Apna WhatsApp number Admin Panel → Settings se bhi change kar saktay hain.   */
 let OWNER_WHATSAPP = localStorage.getItem('mz_owner_wa') || (typeof DEFAULT_OWNER_WA!=='undefined'?DEFAULT_OWNER_WA:"923245443606");
 let PRODUCTS = (typeof DEFAULT_PRODUCTS!=='undefined') ? DEFAULT_PRODUCTS : [];
+const MZ_PV='v3';
+try{ if(localStorage.getItem('mz_products_ver')!==MZ_PV){ localStorage.removeItem('mz_products_live'); localStorage.removeItem('mz_costs'); localStorage.setItem('mz_products_ver',MZ_PV); } }catch(e){}
 try{ const o=localStorage.getItem('mz_products_live'); if(o) PRODUCTS=JSON.parse(o); }catch(e){}
 
 /* Admin panel se LIVE products (rates/images update) — bot se fetch, fail ho to data.js use hoti hai */
