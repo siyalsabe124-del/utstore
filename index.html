@@ -641,7 +641,8 @@ function toggleFaq(i){
   a.style.maxHeight = open ? a.scrollHeight+'px' : 0;
 }
 function renderPills(){
-  $('#fpills').innerHTML = Object.entries(CATNAMES).map(([c,n])=>
+  $('#fpills').innerHTML = '<button class="fpill '+(state.cat==='all'&&!state.q?'on':'')+'" data-cat="all" onclick="filterCat(\'all\')">All Products</button>'
+    + Object.entries(CATNAMES).map(([c,n])=>
     `<button class="fpill ${state.cat===c?'on':''}" data-cat="${c}" onclick="filterCat('${c}')">${n}</button>`).join('');
 }
 
@@ -699,11 +700,12 @@ function deckScroll(key,dir){ const d=$('#deck-'+key); d.scrollBy({left:dir*d.cl
 /* ================= SHOP GRID ================= */
 function filtered(){
   let list = PRODUCTS.slice();
-  if(state.deck) list = list.filter(p=>p.deck===state.deck);
-  if(state.cat!=='all') list = list.filter(p=>p.cat===state.cat);
   if(state.q){
     const terms=state.q.toLowerCase().split(/\s+/).filter(Boolean);
-    list=list.filter(p=>terms.every(t=>p.name.toLowerCase().includes(t)));
+    if(terms.length) list=list.filter(p=>terms.every(t=>p.name.toLowerCase().includes(t)));
+  } else {
+    if(state.deck) list = list.filter(p=>p.deck===state.deck);
+    if(state.cat!=='all') list = list.filter(p=>p.cat===state.cat);
   }
   const s=$('#sortSel').value;
   if(s==='plow') list.sort((a,b)=>a.price-b.price);
@@ -724,7 +726,7 @@ function renderGrid(){
 }
 function loadMore(){ state.shown+=PAGE; renderGrid(); }
 function filterCat(c,scroll){
-  state.cat=c; state.deck=null; state.shown=PAGE;
+  state.cat=c; state.deck=null; state.q=''; $('#searchInput').value=''; state.shown=PAGE;
   renderPills(); renderGrid();
   document.querySelectorAll('.catlink').forEach(el=>el.classList.toggle('on',el.dataset.cat===c));
   if(scroll) scrollToId('shop');
@@ -737,7 +739,7 @@ function doSearch(q){
   $('#searchInput').value=q; applySearch();
 }
 function applySearch(){
-  state.q=$('#searchInput').value.trim(); state.deck=null; state.shown=PAGE;
+  state.q=$('#searchInput').value.trim(); state.deck=null; state.cat='all'; state.shown=PAGE;
   renderGrid(); scrollToId('shop');
 }
 function scrollToId(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
@@ -1015,7 +1017,7 @@ document.querySelectorAll('#dots i').forEach((d,i)=>d.onclick=()=>{
 window.addEventListener('scroll',()=>$('#btt').classList.toggle('on',window.scrollY>600));
 $('#searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')applySearch();});
 let searchT;
-$('#searchInput').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{state.q=$('#searchInput').value.trim();state.deck=null;state.shown=PAGE;renderGrid();},350)});
+$('#searchInput').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{state.q=$('#searchInput').value.trim();state.deck=null;state.cat='all';state.shown=PAGE;renderPills();renderGrid();},350)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll();});
 
 /* ================= INIT ================= */
